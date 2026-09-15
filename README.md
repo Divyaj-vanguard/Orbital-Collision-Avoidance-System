@@ -1,5 +1,5 @@
 # OCAS: Autonomous Orbital Collision Avoidance System
-**Project-Based Learning (PBL) — Phase-I Evaluation**  
+**Project-Based Learning (PBL)**  
 *Department of Computer Science & Engineering, Graphic Era (Deemed to be University), Dehradun*  
 **Academic Session:** 2026–2027 | **Course Integration:** Data Structures in C & Object-Oriented Programming in C++
 
@@ -19,10 +19,10 @@ OCAS provides an onboard, zero-heap edge computing pipeline that ingests CCSDS C
 | **2510011013** | **Adamya Rawat** | **Team Lead & System Architect** | Core pipeline architecture, module interface contracts, edge ML risk scoring, and coordination. |
 | **2510381135** | **Atiksh Sharma** | **Core Backend Engineer** | Low-level C zero-allocation buffers, FIFO alert queue, and Binary Max-Heap priority engine. |
 | **2510385597** | **Agamya Saini** | **QA & Validation Engineer** | Test vector generation, fault-injection testbeds, logging validation, and problem analysis[cite: 1]. |
-| **2510370197**[cite: 1] | **Krishna Sehgal**[cite: 1] | **Research & Documentation**[cite: 1] | CCSDS CDM dataset preprocessing, literature study, safety compliance, and documentation[cite: 1]. |
+| **2510370197** | **Krishna Sehgal** | **Research & Documentation**[cite: 1] | CCSDS CDM dataset preprocessing, literature study, safety compliance, and documentation. |
 
-* **Faculty Mentor:** Dr. Narayan Chaturvedi[cite: 1]  
-* **Group ID:** DSCPP-III-2026-T018[cite: 1]
+* **Faculty Mentor:** Dr. Narayan Chaturvedi 
+* **Group ID:** DSCPP-III-2026-T018
 
 ---
 
@@ -36,3 +36,109 @@ OCAS provides an onboard, zero-heap edge computing pipeline that ingests CCSDS C
 ---
 
 ## 4. System Architecture & Data Flow
++-------------------------------------------------------------------------------+
+|                             DATA INGESTION (C11)                              |
+|   +--------------------------+          +---------------------------------+   |
+|   | Space-Track CDMs / State | -------> | Static Circular Ring Buffer     |   |
+|   | Telemetry (Fixed Struct) |          | (Zero-Heap Ingestion Queue)     |   |
+|   +--------------------------+          +---------------------------------+   |
++---------------------------------------------------|---------------------------+
+v
++-------------------------------------------------------------------------------+
+|                          CORE LOGIC & SCORING LAYER                           |
+|   +---------------------------------------+     +-------------------------+   |
+|   | In-Place Logistic Regression Model    | --> | Binary Max-Heap         |   |
+|   | Inputs: d_miss, v_rel, t_TCA, sigma   |     | Root: Highest Threat    |   |
+|   | Output: Threat Score P in [0.0, 1.0]  |     | O(1) Peek, O(log n) Ins |   |
+|   +---------------------------------------+     +-------------------------+   |
++---------------------------------------------------|---------------------------+
+v
++-------------------------------------------------------------------------------+
+|                       PROPULSION DISPATCHER (C++17 OOP)                       |
+|                 +-------------------------------------------+                 |
+|                 |       Base Class: ThrusterEngine          |                 |
+|                 +-------------------------------------------+                 |
+|                        /              |              \                        |
+|                       v               v               v                       |
+|              +-------------+   +-------------+   +-------------+              |
+|              |  Chemical   |   |     Ion     |   |  Cold-Gas   |              |
+|              | (High Thrust|   | (High Isp / |   |  (Micro RCS |              |
+|              |  Fast Burn) |   |  Low Thrust)|   |   Pulsing)  |              |
+|              +-------------+   +-------------+   +-------------+              |
+|                       |               |               |                       |
+|                       +-------+-------+---------------+                       |
+|                               v                                               |
+|               Tsiolkovsky Delta-V & Time Check                                |
+|             [Automatic Fallback on Feasibility Fail]                          |
++---------------------------------------|---------------------------------------+
+v
++-------------------------------------------------------------------------------+
+|                         PERSISTENCE & AUDIT LAYER                             |
+|    +-------------------+    +--------------------+    +--------------------+  |
+|    | LIFO State Stack  |    | Doubly Linked List |    | Append-Only Log    |  |
+|    | (Abort Rollbacks) |    | (Mission Timeline) |    | (flight_audit.log) |  |
+|    +-------------------+    +--------------------+    +--------------------+  |
++-------------------------------------------------------------------------------+
+
+## 5. Technology Stack & Engineering Rationale
+
+| Layer | Component / Tech | Rationale & Trade-offs |
+| :--- | :--- | :--- |
+| **Ingestion** | Pure C (C11)[cite: 1] | Microsecond-level determinism; completely bypasses memory leaks and fragmentation[cite: 1]. |
+| **Hardware Abstraction** | C++17[cite: 1] | Object-Oriented Polymorphism cleanly models swappable thruster engines without runtime overhead[cite: 1]. |
+| **Threat Prioritization** | Custom Binary Max-Heap[cite: 1] | Eliminates $\mathcal{O}(n \log n)$ array sorting stalls during alert bursts; provides instant $\mathcal{O}(1)$ top-threat peek[cite: 1]. |
+| **Persistence** | In-Memory Structs[cite: 1] | Replaces heavy relational SQL databases to eliminate daemon overhead, disk latency, and IPC socket delays[cite: 1]. |
+| **Build & Standards** | GCC & CMake[cite: 1] | Strict compilation (`-Wall -Wextra -Werror -pedantic`) and automated cross-compilation for embedded ARM targets[cite: 1]. |
+
+---
+
+## 6. Directory Structure
+
+ocas-orbit-guard/
+├── CMakeLists.txt              # Production root CMake configuration
+├── run_ocas.sh                 # End-to-end execution script
+├── include/
+│   ├── c_ingestion.h           # Ring buffer, structs, FIFO definitions
+│   ├── risk_engine.h           # Logistic Regression & Max-Heap prototypes
+│   ├── thruster_engine.hpp     # Abstract ThrusterEngine & derived classes
+│   └── persistence.hpp         # LIFO stack & Doubly Linked List headers
+├── src/
+│   ├── c_ingestion/
+│   │   ├── ring_buffer.c       # Zero-allocation circular queue logic
+│   │   └── telemetry_parser.c  # CCSDS CDM packet parsing
+│   ├── cpp_engine/
+│   │   ├── risk_classifier.cpp # Edge ML scoring logic
+│   │   ├── max_heap.cpp        # Binary priority queue implementation
+│   │   ├── thruster_impl.cpp   # Chemical, Ion, Cold-Gas controllers
+│   │   └── persistence.cpp     # Stack rollback & timeline traversal
+│   ├── main.cpp                # System pipeline orchestrator
+│   └── visualizer/
+│       ├── index.html          # Real-time WebGL / Three.js 3D dashboard
+│       ├── app.js              # Telemetry WebSocket listener & orbit rendering
+│       └── styles.css          # Mission control UI styling
+└── data/
+    └── test_cdm_vectors.json   # Simulated benchmark conjunction scenarios
+
+## 7. Build, Compilation & Execution
+
+### Prerequisites
+* **Compiler:** GCC/G++ 11+ with support for C11 and C++17 standards.
+* **Build System:** CMake (v3.16 or higher).
+* **Environment:** POSIX/Linux (Ubuntu 22.04 LTS / Debian) or macOS with standard POSIX toolchains.
+* **Optional:** Python 3.9+ with `scikit-learn` and `numpy` (for offline logistic regression coefficient training).
+
+### Step-by-Step Build Instructions
+
+# 1. Clone the project repository
+git clone [https://github.com/Divyaj-vanguard/Orbital-Collision-Avoidance-System.git](https://github.com/Divyaj-vanguard/Orbital-Collision-Avoidance-System.git)
+cd Orbital-Collision-Avoidance-System
+
+# 2. Create and enter an isolated build directory
+mkdir -p build && cd build
+
+# 3. Configure the CMake target with strict aerospace compiler flags
+# (-Wall -Wextra -Werror treats all warnings as fatal errors to enforce safety)
+cmake -DCMAKE_BUILD_TYPE=Release ..
+
+# 4. Compile the binaries
+make -j$(nproc)
