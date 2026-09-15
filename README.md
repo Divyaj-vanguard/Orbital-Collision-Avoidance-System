@@ -134,7 +134,7 @@ ocas-orbit-guard/
 
 ```bash
 # 1. Clone the project repository
-git clone [https://github.com/AdamyaRawat/OCAS-Orbital-Collision-Avoidance-System.git](https://github.com/AdamyaRawat/OCAS-Orbital-Collision-Avoidance-System.git)
+git clone [https://github.com/Divyaj_vanguard/Orbital-Collision-Avoidance-System.git](https://github.com/Divyaj_vanguard/Orbital-Collision-Avoidance-System.git)
 cd OCAS-Orbital-Collision-Avoidance-System
 
 # 2. Create and enter an isolated build directory
