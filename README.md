@@ -36,6 +36,8 @@ OCAS provides an onboard, zero-heap edge computing pipeline that ingests CCSDS C
 ---
 
 ## 4. System Architecture & Data Flow
+
+```
 +-------------------------------------------------------------------------------+
 |                             DATA INGESTION (C11)                              |
 |   +--------------------------+          +---------------------------------+   |
@@ -43,7 +45,7 @@ OCAS provides an onboard, zero-heap edge computing pipeline that ingests CCSDS C
 |   | Telemetry (Fixed Struct) |          | (Zero-Heap Ingestion Queue)     |   |
 |   +--------------------------+          +---------------------------------+   |
 +---------------------------------------------------|---------------------------+
-v
+                                                    v
 +-------------------------------------------------------------------------------+
 |                          CORE LOGIC & SCORING LAYER                           |
 |   +---------------------------------------+     +-------------------------+   |
@@ -52,7 +54,7 @@ v
 |   | Output: Threat Score P in [0.0, 1.0]  |     | O(1) Peek, O(log n) Ins |   |
 |   +---------------------------------------+     +-------------------------+   |
 +---------------------------------------------------|---------------------------+
-v
+                                                    v
 +-------------------------------------------------------------------------------+
 |                       PROPULSION DISPATCHER (C++17 OOP)                       |
 |                 +-------------------------------------------+                 |
@@ -71,7 +73,7 @@ v
 |               Tsiolkovsky Delta-V & Time Check                                |
 |             [Automatic Fallback on Feasibility Fail]                          |
 +---------------------------------------|---------------------------------------+
-v
+                                        v
 +-------------------------------------------------------------------------------+
 |                         PERSISTENCE & AUDIT LAYER                             |
 |    +-------------------+    +--------------------+    +--------------------+  |
@@ -79,6 +81,8 @@ v
 |    | (Abort Rollbacks) |    | (Mission Timeline) |    | (flight_audit.log) |  |
 |    +-------------------+    +--------------------+    +--------------------+  |
 +-------------------------------------------------------------------------------+
+```
+
 
 ## 5. Technology Stack & Engineering Rationale
 
@@ -90,10 +94,9 @@ v
 | **Persistence** | In-Memory Structs[cite: 1] | Replaces heavy relational SQL databases to eliminate daemon overhead, disk latency, and IPC socket delays[cite: 1]. |
 | **Build & Standards** | GCC & CMake[cite: 1] | Strict compilation (`-Wall -Wextra -Werror -pedantic`) and automated cross-compilation for embedded ARM targets[cite: 1]. |
 
----
 
 ## 6. Directory Structure
-
+```
 ocas-orbit-guard/
 ├── CMakeLists.txt              # Production root CMake configuration
 ├── run_ocas.sh                 # End-to-end execution script
@@ -118,7 +121,7 @@ ocas-orbit-guard/
 │       └── styles.css          # Mission control UI styling
 └── data/
     └── test_cdm_vectors.json   # Simulated benchmark conjunction scenarios
-
+```
 ## 7. Build, Compilation & Execution
 
 ### Prerequisites
@@ -129,9 +132,10 @@ ocas-orbit-guard/
 
 ### Step-by-Step Build Instructions
 
+```bash
 # 1. Clone the project repository
-git clone [https://github.com/Divyaj-vanguard/Orbital-Collision-Avoidance-System.git](https://github.com/Divyaj-vanguard/Orbital-Collision-Avoidance-System.git)
-cd Orbital-Collision-Avoidance-System
+git clone [https://github.com/AdamyaRawat/OCAS-Orbital-Collision-Avoidance-System.git](https://github.com/AdamyaRawat/OCAS-Orbital-Collision-Avoidance-System.git)
+cd OCAS-Orbital-Collision-Avoidance-System
 
 # 2. Create and enter an isolated build directory
 mkdir -p build && cd build
@@ -142,3 +146,54 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 
 # 4. Compile the binaries
 make -j$(nproc)
+
+# Option A: Run the compiled binary directly with test vectors
+./bin/ocas_core ../data/benchmark_cdm_scenarios.json
+
+# Option B: Run the automated simulation script (launches telemetry engine & UI)
+cd ..
+chmod +x run_ocas.sh
+./run_ocas.sh
+```
+## 8. Development Roadmap & Milestones
+
+* [x] **Phase-I: System Design & Static Ingestion (Completed - Current Evaluation)**
+  * Requirement analysis modeling orbital conjunctions and timing constraints.
+  * Preprocessed benchmark LEO conjunction telemetry from Space-Track and CelesTrak.
+  * Static, zero-heap circular buffer and FIFO queue specification in C.
+  * End-to-end prototype pipeline verified on terminal.
+    
+* [ ] **Phase-II: Core Engine & ML Integration (Upcoming)**
+  * In-place Logistic Regression model integration with pre-trained coefficients.
+  * Complete implementation of Binary Max-Heap risk ranking engine.
+  * Polymorphic `ThrusterEngine` dispatcher with automated fallback arbitration.
+  * LIFO rollback stack and doubly linked list history ledger integration.
+    
+* [ ] **Phase-III: Validation, Benchmarking & Visualizer (Final Delivery)**
+  * Fault-injection suite (simulating telemetry queue saturation and mid-burn thruster dropouts).
+  * Valgrind and AddressSanitizer audit to verify zero dynamic heap leaks.
+  * Benchmarking decision latency to achieve sub-millisecond execution.
+  * Interactive WebGL / 3D orbital trajectory dashboard integration.
+
+---
+
+## 9. Evaluation Metrics & Verification Targets
+
+| Metric | Target Specification | Validation Method |
+| :--- | :--- | :--- |
+| **High-Risk Prioritization Rate** | $\ge 90\%$ critical threats prioritized | Scored against CelesTrak historical collision near-misses. |
+| **Ingestion Heap Allocation** | Exactly **0 bytes** post-boot | Memory profiling via Valgrind Massif tool. |
+| **Decision Latency** | $\le 1.0\text{ ms}$ from alert ingest to burn vector | High-resolution CPU cycle benchmarking (`clock_gettime`). |
+| **Thruster Fallback Reliability** | $100\%$ safe recovery during thruster failure | Automated fault-injection suite during burn dispatch. |
+| **Rollback Integrity** | O(1) instant state restoration | LIFO stack pop verification upon maneuver abort flag. |
+
+---
+
+## 10. References & Standards
+
+1. **CCSDS 508.0-B-1:** *Conjunction Data Message (CDM)* Blue Book Recommended Standard, Consultative Committee for Space Data Systems.
+2. **MISRA C:2012:** *Guidelines for the use of the C language in critical systems* (Rules 11.4, 21.3 regarding dynamic allocation).
+3. **ISO/IEC 14882:2017:** *Standard for Programming Language C++ (C++17)*.
+4. **CelesTrak & Space-Track Archives:** *Public Conjunction Assessment and Two-Line Element (TLE) Data Sets*.
+5. **Tsiolkovsky, K. E.:** *The Exploration of Cosmic Space by Means of Reaction Devices* (Ideal Rocket Equation formulation for propulsion arbitration).
+
