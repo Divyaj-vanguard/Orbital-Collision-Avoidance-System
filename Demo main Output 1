@@ -1,0 +1,207 @@
+PS C:\Users\HP\Desktop\AutonomousOrbitalCollisionSystem> g++ cpp/main.cpp cpp/CircularQueue.cpp -o main
+PS C:\Users\HP\Desktop\AutonomousOrbitalCollisionSystem> .\main
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 1
+
+Enter Alert ID: 10
+Enter Miss Distance (m): 20
+Enter Relative Velocity (km/s): 21
+Enter Time to TCA (sec): 23
+Enter Covariance Trace (m^2): 3
+
+Threat added successfully.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 1
+
+Enter Alert ID: 3
+Enter Miss Distance (m): 23
+Enter Relative Velocity (km/s): 34
+Enter Time to TCA (sec): 1
+Enter Covariance Trace (m^2): 34
+
+Threat added successfully.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 43
+
+Invalid choice.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 1
+
+Enter Alert ID: 23
+Enter Miss Distance (m): 34
+Enter Relative Velocity (km/s): 54
+Enter Time to TCA (sec): 23
+Enter Covariance Trace (m^2): 43
+
+Threat added successfully.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 2
+
+-------------------------------------
+          PENDING THREATS
+-----------------------------------------
+
+Alert ID        : 10
+Miss Distance     : 20 m
+Relative Velocity : 21 km/s
+Time to TCA       : 23 sec
+Covariance Trace  : 3 m^2
+-----------------------------
+
+Alert ID        : 3
+Miss Distance     : 23 m
+Relative Velocity : 34 km/s
+Time to TCA       : 1 sec
+Covariance Trace  : 34 m^2
+-----------------------------
+
+Alert ID        : 23
+Miss Distance     : 34 m
+Relative Velocity : 54 km/s
+Time to TCA       : 23 sec
+Covariance Trace  : 43 m^2
+-----------------------------
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 3
+
+Threat sent for processing successfully.
+Alert ID: 10
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 2
+
+-------------------------------------
+          PENDING THREATS
+-----------------------------------------
+
+Alert ID        : 3
+Miss Distance     : 23 m
+Relative Velocity : 34 km/s
+Time to TCA       : 1 sec
+Covariance Trace  : 34 m^2
+-----------------------------
+
+Alert ID        : 23
+Miss Distance     : 34 m
+Relative Velocity : 54 km/s
+Time to TCA       : 23 sec
+Covariance Trace  : 43 m^2
+-----------------------------
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 3
+
+Threat sent for processing successfully.
+Alert ID: 3
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 3
+
+Threat sent for processing successfully.
+Alert ID: 23
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 3
+
+No pending threats to process.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 2
+
+No pending threats.
+
+------------------------------------
+       ORBITAL THREAT SYSTEM
+----------------------------------------
+1. Add Threat
+2. View Pending Threats
+3. Send Threat to Process
+4. Exit
+--------------------------------------
+Enter your choice: 4
+
+Exiting system...
+PS C:\Users\HP\Desktop\AutonomousOrbitalCollisionSystem> 

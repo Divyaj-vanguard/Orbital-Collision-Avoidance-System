@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ============================================================================
 # OCAS: Autonomous Orbital Collision Avoidance System
 # .gitignore — Team ID: DSCPP-III-2026-T018 | Graphic Era University
@@ -77,3 +78,74 @@ Thumbs.db
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
+=======
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+*.so.*
+
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Build directories
+build/
+Build/
+build-*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.swp
+
+# vcpkg
+vcpkg_installed/
+
+# debug information files
+*.dwo
+
+# test output & cache
+Testing/
+.cache/
+>>>>>>> e49fb1a59fde1e04fee2ebc7a240a2933630578f
