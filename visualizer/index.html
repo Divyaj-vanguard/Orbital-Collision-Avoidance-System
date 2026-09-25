@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCAS: Autonomous Orbital Collision Avoidance System</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Three.js and OrbitControls from CDN (with fallback in orbit_3d.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="top-nav">
+    <div class="brand-section">
+      <div class="brand-badge">OCAS v1.0</div>
+      <div class="brand-titles">
+        <h1>Autonomous Orbital Collision Avoidance System</h1>
+        <div class="sub-title">TEAM ID: DSCPP-III-2026-T018 &bull; GRAPHIC ERA UNIVERSITY &bull; SAFETY-CRITICAL FLIGHT CORE</div>
+      </div>
+    </div>
+    <div class="system-status-bar">
+      <div class="status-pill" id="threat-level-badge">
+        <span class="status-dot"></span>
+        <span id="threat-level-text">NOMINAL</span>
+      </div>
+      <div class="status-pill">
+        <span class="metric-label" style="margin:0; color:#88a0c4;">MET:</span>
+        <span id="met-clock" style="font-weight:700; color:#00d4ff;">T+00:00:00</span>
+      </div>
+      <div class="badge-tag" id="active-engine-badge">POLAR-LEO 408 KM</div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Grid -->
+  <main class="dashboard-grid">
+
+    <!-- Column 1: Telemetry & Memory Subsystems -->
+    <div class="grid-col">
+
+      <!-- Kinematics Card -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">📡 Spacecraft Telemetry</span>
+          <span class="badge-tag">PRIMARY SAT</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Altitude</div>
+            <div class="metric-value"><span id="sat-alt">408.0</span><span class="metric-unit">km</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Velocity</div>
+            <div class="metric-value"><span id="sat-vel">7.66</span><span class="metric-unit">km/s</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Propellant</div>
+            <div class="metric-value"><span id="sat-fuel">200.0</span><span class="metric-unit">kg</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Wet Mass</div>
+            <div class="metric-value"><span id="sat-mass">1200</span><span class="metric-unit">kg</span></div>
+          </div>
+        </div>
+
+        <div class="propellant-container">
+          <div class="propellant-labels">
+            <span style="color:var(--text-secondary)">Usable Fuel Remaining</span>
+            <span id="sat-fuel-pct" style="color:var(--accent-cyan)">100.0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="sat-fuel-bar" style="width: 100%;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- C11 Static Ingestion & Memory Layer -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">💾 C11 Ingestion Layer</span>
+          <span class="badge-tag">ZERO HEAP ALLOC</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Ring Buffer</div>
+            <div class="metric-value"><span id="ring-count">0/64</span></div>
+            <div style="font-size:9.5px; color:var(--text-muted); margin-top:3px;">
+              Evicted: <span id="ring-overwritten" style="color:var(--accent-amber)">0</span>
+            </div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">CDM FIFO Queue</div>
+            <div class="metric-value"><span id="fifo-count">0/32</span></div>
+            <div style="font-size:9.5px; color:var(--text-muted); margin-top:3px;">
+              Dropped: <span id="fifo-dropped" style="color:var(--accent-red)">0</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px; font-family:var(--font-mono); font-size:10.5px; color:var(--text-secondary)">
+          &bull; Memory: 64-byte Cache Aligned<br>
+          &bull; Overwrite Policy: Overwrite-Oldest<br>
+          &bull; FIFO Bound: Drop-Newest on Full
+        </div>
+      </section>
+
+      <!-- LIFO State Rollback Stack -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">↺ LIFO State Stack</span>
+          <span class="badge-tag">O(1) ROLLBACK</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="color:var(--text-secondary)">Active Snapshot Depth:</span>
+          <span id="stack-depth" style="font-family:var(--font-mono); font-weight:700; color:var(--accent-cyan)">0/32</span>
+        </div>
+        <p style="font-size:11px; color:var(--text-muted); line-height:1.4;">
+          Guarantees immediate &Omicron;(1) restoration of pre-burn satellite kinematics if a thruster valve anomaly or mid-burn abort occurs.
+        </p>
+      </section>
+
+    </div>
+
+    <!-- Column 2: 3D WebGL Orbit Canvas & Control Panel -->
+    <div class="grid-col" style="overflow:hidden;">
+
+      <!-- 3D Orbit Viewport -->
+      <section class="hud-card viewport-card">
+        <div class="canvas-container" id="canvas-container">
+          <!-- 3D Canvas injected here -->
+          <div class="canvas-overlay-hud">
+            <div class="overlay-badge">FRAME: ECI INERTIAL (J2000)</div>
+            <div class="overlay-badge" style="color:var(--accent-cyan)">PRIMARY: BLUE &bull; THREATS: RED/YELLOW</div>
+          </div>
+          <div class="canvas-controls">
+            <button class="btn-ctrl" id="btn-view-orbit">Orbit View</button>
+            <button class="btn-ctrl" id="btn-view-top">Top Polar</button>
+            <button class="btn-ctrl" id="btn-view-follow">Follow Sat</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Fault Injection & Operations Control Panel -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">⚙️ Flight Software Control & Fault Injection</span>
+          <span class="badge-tag">AEROSPACE TESTBENCH</span>
+        </div>
+        <div class="control-bar">
+          <button class="btn-action primary" id="btn-step">⚡ Step Cycle</button>
+          <button class="btn-action danger" id="btn-anomaly">⚠️ Inject Thruster Anomaly</button>
+          <button class="btn-action warning" id="btn-surge">☄️ Debris Surge</button>
+          <button class="btn-action purple" id="btn-rollback">↺ LIFO Rollback</button>
+          <button class="btn-action primary" id="btn-auto">▶ Auto-Pilot Loop</button>
+          <button class="btn-ctrl" id="btn-reset" style="padding:10px 14px;">Reset</button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Column 3: Explainable Edge ML, Priority Heap, and Mission Ledger -->
+    <div class="grid-col">
+
+      <!-- Explainable ML & Root Threat Assessment -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">🧠 Explainable Edge ML</span>
+          <span class="badge-tag">LOGISTIC REGRESSION</span>
+        </div>
+        <div style="background:rgba(8,14,26,0.7); padding:10px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:10px; color:var(--text-muted);">HIGHEST THREAT</div>
+              <div id="root-threat-name" style="font-weight:700; font-family:var(--font-mono); color:var(--accent-cyan);">LOADING...</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px; color:var(--text-muted);">P(COLLISION)</div>
+              <div id="root-threat-prob" style="font-size:16px; font-weight:800; color:var(--accent-red); font-family:var(--font-mono);">0.0%</div>
+            </div>
+          </div>
+          <div style="margin-top:6px; font-size:10.5px; color:var(--text-secondary); font-family:var(--font-mono);">
+            Action: <span id="root-threat-action" style="color:var(--text-primary); font-weight:600;">NOMINAL_PASS</span>
+          </div>
+        </div>
+
+        <div style="font-size:10px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Model Feature Breakdown:</div>
+        <div class="explain-factors">
+          <div class="factor-row">
+            <span>Miss Distance (d<sub>miss</sub>)</span>
+            <div class="factor-bar-track"><div class="factor-bar-fill" id="bar-f-dist" style="width: 50%;"></div></div>
+            <span id="val-f-dist" style="font-family:var(--font-mono); width:32px; text-align:right;">0.50</span>
+          </div>
+          <div class="factor-row">
+            <span>Relative Velocity (v<sub>rel</sub>)</span>
+            <div class="factor-bar-track"><div class="factor-bar-fill" id="bar-f-vel" style="width: 60%;"></div></div>
+            <span id="val-f-vel" style="font-family:var(--font-mono); width:32px; text-align:right;">0.60</span>
+          </div>
+          <div class="factor-row">
+            <span>Time to TCA (t<sub>TCA</sub>)</span>
+            <div class="factor-bar-track"><div class="factor-bar-fill" id="bar-f-tca" style="width: 75%;"></div></div>
+            <span id="val-f-tca" style="font-family:var(--font-mono); width:32px; text-align:right;">0.75</span>
+          </div>
+          <div class="factor-row">
+            <span>Covariance Trace (Tr(&sigma;))</span>
+            <div class="factor-bar-track"><div class="factor-bar-fill" id="bar-f-cov" style="width: 40%;"></div></div>
+            <span id="val-f-cov" style="font-family:var(--font-mono); width:32px; text-align:right;">0.40</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Binary Max-Heap Threat Queue -->
+      <section class="hud-card" style="max-height:220px; overflow-y:auto;">
+        <div class="card-header">
+          <span class="card-title">🔺 Binary Max-Heap Queue</span>
+          <span class="badge-tag"><span id="threat-count">0</span> THREATS</span>
+        </div>
+        <table class="hud-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Object</th>
+              <th>d<sub>miss</sub></th>
+              <th>TCA</th>
+              <th>P(col)</th>
+              <th>Level</th>
+            </tr>
+          </thead>
+          <tbody id="heap-table-body">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Doubly Linked List Mission Ledger -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">📖 Mission Ledger</span>
+          <span class="badge-tag">DOUBLY LINKED LIST</span>
+        </div>
+        <div id="audit-summary-metrics" style="font-size:11px; font-family:var(--font-mono); color:var(--text-secondary); margin-bottom:8px;">
+          <span>Total Maneuvers: <b>0</b></span> | <span>Cum. &Delta;V: <b>0.0 m/s</b></span>
+        </div>
+        <div style="max-height:120px; overflow-y:auto;">
+          <table class="hud-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Target</th>
+                <th>&Delta;V</th>
+                <th>Spent</th>
+                <th>Time</th>
+                <th>Engine</th>
+              </tr>
+            </thead>
+            <tbody id="ledger-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Live Flight Audit Log Stream -->
+      <section class="hud-card">
+        <div class="card-header">
+          <span class="card-title">📝 Append-Only Flight Audit Log</span>
+          <span class="badge-tag">JSONL STREAM</span>
+        </div>
+        <div class="log-console" id="log-console">
+          <!-- Live audit logs injected here -->
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <script src="js/orbit_3d.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

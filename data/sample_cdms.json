@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "standard": "CCSDS 508.0-B-1 CDM XML/JSON",
+    "originator": "OCAS Autonomous Flight Software",
+    "team_id": "DSCPP-III-2026-T018",
+    "institution": "Graphic Era University",
+    "generated_epoch_s": 1726531200,
+    "count": 10
+  },
+  "cdm_records": [
+    {
+      "alert_id": 101,
+      "object_id": 20101,
+      "object_name": "STARLINK-4092 FRAGMENT",
+      "miss_distance_m": 24500.00,
+      "rel_velocity_kms": 1.820,
+      "time_to_tca_s": 5400.0,
+      "covariance": [
+        [120.0, 0.0, 0.0],
+        [0.0, 120.0, 0.0],
+        [0.0, 0.0, 120.0]
+      ],
+      "epoch_s": 1726536600
+    },
+    {
+      "alert_id": 102,
+      "object_id": 20102,
+      "object_name": "COSMOS-1408 ASAT DEBRIS",
+      "miss_distance_m": 1450.00,
+      "rel_velocity_kms": 4.250,
+      "time_to_tca_s": 1800.0,
+      "covariance": [
+        [250.0, 0.0, 0.0],
+        [0.0, 250.0, 0.0],
+        [0.0, 0.0, 250.0]
+      ],
+      "epoch_s": 1726533000
+    },
+    {
+      "alert_id": 103,
+      "object_id": 20103,
+      "object_name": "ISS-SHED RADIATOR PANEL",
+      "miss_distance_m": 110.00,
+      "rel_velocity_kms": 12.500,
+      "time_to_tca_s": 420.0,
+      "covariance": [
+        [180.0, 0.0, 0.0],
+        [0.0, 180.0, 0.0],
+        [0.0, 0.0, 180.0]
+      ],
+      "epoch_s": 1726531620
+    },
+    {
+      "alert_id": 104,
+      "object_id": 20104,
+      "object_name": "ORBCOMM SPARE (DEFUNCT)",
+      "miss_distance_m": 7800.00,
+      "rel_velocity_kms": 3.400,
+      "time_to_tca_s": 2700.0,
+      "covariance": [
+        [380.0, 0.0, 0.0],
+        [0.0, 380.0, 0.0],
+        [0.0, 0.0, 380.0]
+      ],
+      "epoch_s": 1726533900
+    },
+    {
+      "alert_id": 105,
+      "object_id": 20105,
+      "object_name": "CZ-3B ROCKET STAGE",
+      "miss_distance_m": 320.00,
+      "rel_velocity_kms": 9.800,
+      "time_to_tca_s": 1100.0,
+      "covariance": [
+        [110.0, 0.0, 0.0],
+        [0.0, 110.0, 0.0],
+        [0.0, 0.0, 110.0]
+      ],
+      "epoch_s": 1726532300
+    },
+    {
+      "alert_id": 106,
+      "object_id": 20106,
+      "object_name": "FENGYUN-1C DEBRIS (43122)",
+      "miss_distance_m": 680.00,
+      "rel_velocity_kms": 8.450,
+      "time_to_tca_s": 780.0,
+      "covariance": [
+        [160.0, 0.0, 0.0],
+        [0.0, 160.0, 0.0],
+        [0.0, 0.0, 160.0]
+      ],
+      "epoch_s": 1726531980
+    },
+    {
+      "alert_id": 107,
+      "object_id": 20107,
+      "object_name": "IRIDIUM-33 DEBRIS (34891)",
+      "miss_distance_m": 220.00,
+      "rel_velocity_kms": 11.200,
+      "time_to_tca_s": 510.0,
+      "covariance": [
+        [95.0, 0.0, 0.0],
+        [0.0, 95.0, 0.0],
+        [0.0, 0.0, 95.0]
+      ],
+      "epoch_s": 1726531710
+    },
+    {
+      "alert_id": 108,
+      "object_id": 20108,
+      "object_name": "SL-08 ROCKET BODY (22134)",
+      "miss_distance_m": 9200.00,
+      "rel_velocity_kms": 2.750,
+      "time_to_tca_s": 4100.0,
+      "covariance": [
+        [420.0, 0.0, 0.0],
+        [0.0, 420.0, 0.0],
+        [0.0, 0.0, 420.0]
+      ],
+      "epoch_s": 1726535300
+    },
+    {
+      "alert_id": 109,
+      "object_id": 20109,
+      "object_name": "NOAA-16 DEBRIS (41103)",
+      "miss_distance_m": 1850.00,
+      "rel_velocity_kms": 5.100,
+      "time_to_tca_s": 1950.0,
+      "covariance": [
+        [210.0, 0.0, 0.0],
+        [0.0, 210.0, 0.0],
+        [0.0, 0.0, 210.0]
+      ],
+      "epoch_s": 1726533150
+    },
+    {
+      "alert_id": 110,
+      "object_id": 20110,
+      "object_name": "ENVISAT DERELICT",
+      "miss_distance_m": 450.00,
+      "rel_velocity_kms": 7.300,
+      "time_to_tca_s": 890.0,
+      "covariance": [
+        [140.0, 0.0, 0.0],
+        [0.0, 140.0, 0.0],
+        [0.0, 0.0, 140.0]
+      ],
+      "epoch_s": 1726532090
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+# ============================================================================
+# OCAS: Autonomous Orbital Collision Avoidance System
+# .gitignore — Team ID: DSCPP-III-2026-T018 | Graphic Era University
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Build artifacts — never commit compiled binaries or object files
+# ----------------------------------------------------------------------------
+bin/
+build/
+lib/
+*.o
+*.a
+*.so
+*.out
+
+# ----------------------------------------------------------------------------
+# Large training/test datasets — too big for GitHub (>100MB limit)
+# Keep only the small reference catalog and scored output
+# ----------------------------------------------------------------------------
+train_data.csv
+test_data.csv
+cleaned_cdm_dataset.csv
+data/train_clean.csv
+data/test_clean.csv
+
+# ----------------------------------------------------------------------------
+# Live-fetched data — changes every day, not for version control
+# ----------------------------------------------------------------------------
+data/spacetrack_live.json
+data/spacetrack_gp.json
+data/celestrak_live.json
+data/fetch_manifest.txt
+
+# ----------------------------------------------------------------------------
+# Sensitive files — NEVER commit credentials or cookies
+# ----------------------------------------------------------------------------
+.ocas_credentials
+~/.ocas_credentials
+/tmp/ocas_*.txt
+cookies.txt
+*.cookie
+
+# ----------------------------------------------------------------------------
+# Space-Track raw download — large, contains operational data
+# Keep our processed www.space-track.org.json as it has named objects
+# ----------------------------------------------------------------------------
+# (www.space-track.org.json is kept — it is our live demo dataset)
+
+# ----------------------------------------------------------------------------
+# Logs — generated at runtime
+# ----------------------------------------------------------------------------
+logs/
+*.log
+collision_avoidance.log
+
+# ----------------------------------------------------------------------------
+# Node.js — leftover from old visualizer prototype
+# ----------------------------------------------------------------------------
+node_modules/
+package-lock.json
+
+# ----------------------------------------------------------------------------
+# IDE / OS files
+# ----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----------------------------------------------------------------------------
+# CMake build directory
+# ----------------------------------------------------------------------------
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/

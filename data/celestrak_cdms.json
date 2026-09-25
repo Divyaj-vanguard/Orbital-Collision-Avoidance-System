@@ -1,0 +1,988 @@
+{
+  "team_id": "DSCPP-III-2026-T018",
+  "source": "CelesTrak NORAD GP Debris API",
+  "primary_sat": {
+    "name": "OCAS-SAT-01",
+    "altitude_km": 408.0,
+    "speed_kms": 7.66,
+    "inclination_deg": 86.4,
+    "dry_mass_kg": 1000.0,
+    "fuel_mass_kg": 200.0,
+    "total_mass_kg": 1200.0
+  },
+  "threat_count": 27,
+  "threats": [
+    {
+      "norad_cat_id": 50032,
+      "object_name": "COSMOS 1408 DEB",
+      "object_id": "1982-092RU",
+      "d_miss_m": 2024.09,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 300.0,
+      "covariance": [
+        [
+          33453.9,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          21410.49,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          12043.4
+        ]
+      ],
+      "sigma_eff_m": 182.9,
+      "risk_score": 0.8424,
+      "risk_level": "HIGH",
+      "tactical_action": "PREPARE_MANEUVER_WINDOW",
+      "explain": {
+        "f_d": 0.597,
+        "f_v": 0.194,
+        "f_t": 0.607,
+        "f_sigma": 0.478,
+        "logit": 1.676
+      }
+    },
+    {
+      "norad_cat_id": 50621,
+      "object_name": "COSMOS 1408 DEB",
+      "object_id": "1982-092ALR",
+      "d_miss_m": 11913.3,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2686.7,
+      "covariance": [
+        [
+          76680.31,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          49075.4,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          27604.91
+        ]
+      ],
+      "sigma_eff_m": 276.9,
+      "risk_score": 0.1364,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.201,
+        "f_v": 0.194,
+        "f_t": 0.011,
+        "f_sigma": 0.581,
+        "logit": -1.846
+      }
+    },
+    {
+      "norad_cat_id": 50058,
+      "object_name": "COSMOS 1408 DEB",
+      "object_id": "1982-092SW",
+      "d_miss_m": 20351.52,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2693.3,
+      "covariance": [
+        [
+          91620.32,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          58637.01,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          32983.32
+        ]
+      ],
+      "sigma_eff_m": 302.7,
+      "risk_score": 0.1054,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.128,
+        "f_v": 0.194,
+        "f_t": 0.011,
+        "f_sigma": 0.602,
+        "logit": -2.139
+      }
+    },
+    {
+      "norad_cat_id": 25730,
+      "object_name": "FENGYUN 1C",
+      "object_id": "1999-025A",
+      "d_miss_m": 60723.37,
+      "v_rel_kms": 1.65,
+      "t_tca_s": 2680.0,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0901,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.047,
+        "f_v": 0.248,
+        "f_t": 0.011,
+        "f_sigma": 0.636,
+        "logit": -2.313
+      }
+    },
+    {
+      "norad_cat_id": 33860,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051AD",
+      "d_miss_m": 39176.96,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2553.3,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0885,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.071,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.636,
+        "logit": -2.332
+      }
+    },
+    {
+      "norad_cat_id": 33881,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051BA",
+      "d_miss_m": 42770.04,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2526.7,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0866,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.066,
+        "f_v": 0.194,
+        "f_t": 0.015,
+        "f_sigma": 0.636,
+        "logit": -2.356
+      }
+    },
+    {
+      "norad_cat_id": 33862,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051AF",
+      "d_miss_m": 37709.23,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2546.7,
+      "covariance": [
+        [
+          89147.77,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          57054.57,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          32093.2
+        ]
+      ],
+      "sigma_eff_m": 298.6,
+      "risk_score": 0.0847,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.074,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.599,
+        "logit": -2.38
+      }
+    },
+    {
+      "norad_cat_id": 33777,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051Q",
+      "d_miss_m": 45784.92,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2573.3,
+      "covariance": [
+        [
+          114112.91,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          73032.26,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          41080.65
+        ]
+      ],
+      "sigma_eff_m": 337.8,
+      "risk_score": 0.0839,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.061,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.628,
+        "logit": -2.391
+      }
+    },
+    {
+      "norad_cat_id": 29748,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AN",
+      "d_miss_m": 197564.99,
+      "v_rel_kms": 1.86,
+      "t_tca_s": 2620.0,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0835,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.015,
+        "f_v": 0.271,
+        "f_t": 0.013,
+        "f_sigma": 0.636,
+        "logit": -2.396
+      }
+    },
+    {
+      "norad_cat_id": 29737,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AB",
+      "d_miss_m": 150126.87,
+      "v_rel_kms": 1.77,
+      "t_tca_s": 2646.7,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0831,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.02,
+        "f_v": 0.261,
+        "f_t": 0.012,
+        "f_sigma": 0.636,
+        "logit": -2.401
+      }
+    },
+    {
+      "norad_cat_id": 29733,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025X",
+      "d_miss_m": 131710.42,
+      "v_rel_kms": 1.72,
+      "t_tca_s": 2673.3,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0828,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.022,
+        "f_v": 0.256,
+        "f_t": 0.012,
+        "f_sigma": 0.636,
+        "logit": -2.405
+      }
+    },
+    {
+      "norad_cat_id": 29736,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AA",
+      "d_miss_m": 155379.9,
+      "v_rel_kms": 1.76,
+      "t_tca_s": 2653.3,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0826,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.019,
+        "f_v": 0.26,
+        "f_t": 0.012,
+        "f_sigma": 0.636,
+        "logit": -2.407
+      }
+    },
+    {
+      "norad_cat_id": 29734,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025Y",
+      "d_miss_m": 134552.44,
+      "v_rel_kms": 1.71,
+      "t_tca_s": 2666.7,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0825,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.022,
+        "f_v": 0.255,
+        "f_t": 0.012,
+        "f_sigma": 0.636,
+        "logit": -2.409
+      }
+    },
+    {
+      "norad_cat_id": 29741,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AF",
+      "d_miss_m": 191510.87,
+      "v_rel_kms": 1.75,
+      "t_tca_s": 2626.7,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0814,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.015,
+        "f_v": 0.259,
+        "f_t": 0.013,
+        "f_sigma": 0.636,
+        "logit": -2.424
+      }
+    },
+    {
+      "norad_cat_id": 29740,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AE",
+      "d_miss_m": 186862.86,
+      "v_rel_kms": 1.73,
+      "t_tca_s": 2633.3,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.081,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.016,
+        "f_v": 0.257,
+        "f_t": 0.012,
+        "f_sigma": 0.636,
+        "logit": -2.428
+      }
+    },
+    {
+      "norad_cat_id": 33866,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051AK",
+      "d_miss_m": 60849.01,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2540.0,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0802,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.047,
+        "f_v": 0.194,
+        "f_t": 0.015,
+        "f_sigma": 0.636,
+        "logit": -2.44
+      }
+    },
+    {
+      "norad_cat_id": 33870,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051AP",
+      "d_miss_m": 50760.87,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2533.3,
+      "covariance": [
+        [
+          85999.22,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          55039.5,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          30959.72
+        ]
+      ],
+      "sigma_eff_m": 293.3,
+      "risk_score": 0.0782,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.056,
+        "f_v": 0.194,
+        "f_t": 0.015,
+        "f_sigma": 0.595,
+        "logit": -2.467
+      }
+    },
+    {
+      "norad_cat_id": 33853,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051W",
+      "d_miss_m": 74575.83,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2560.0,
+      "covariance": [
+        [
+          122500.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          78400.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          44100.0
+        ]
+      ],
+      "sigma_eff_m": 350.0,
+      "risk_score": 0.0773,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.039,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.636,
+        "logit": -2.479
+      }
+    },
+    {
+      "norad_cat_id": 33775,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051N",
+      "d_miss_m": 53205.05,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2586.7,
+      "covariance": [
+        [
+          66142.98,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          42331.51,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          23811.47
+        ]
+      ],
+      "sigma_eff_m": 257.2,
+      "risk_score": 0.0736,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.053,
+        "f_v": 0.194,
+        "f_t": 0.013,
+        "f_sigma": 0.563,
+        "logit": -2.533
+      }
+    },
+    {
+      "norad_cat_id": 29750,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AQ",
+      "d_miss_m": 69512.77,
+      "v_rel_kms": 1.64,
+      "t_tca_s": 2613.3,
+      "covariance": [
+        [
+          44573.05,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          28526.75,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          16046.3
+        ]
+      ],
+      "sigma_eff_m": 211.1,
+      "risk_score": 0.0735,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.041,
+        "f_v": 0.247,
+        "f_t": 0.013,
+        "f_sigma": 0.514,
+        "logit": -2.534
+      }
+    },
+    {
+      "norad_cat_id": 29751,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AR",
+      "d_miss_m": 62397.63,
+      "v_rel_kms": 1.61,
+      "t_tca_s": 2606.7,
+      "covariance": [
+        [
+          40138.72,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          25688.78,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          14449.94
+        ]
+      ],
+      "sigma_eff_m": 200.3,
+      "risk_score": 0.0729,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.046,
+        "f_v": 0.244,
+        "f_t": 0.013,
+        "f_sigma": 0.5,
+        "logit": -2.543
+      }
+    },
+    {
+      "norad_cat_id": 33850,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051T",
+      "d_miss_m": 52871.38,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2566.7,
+      "covariance": [
+        [
+          58110.64,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          37190.81,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          20919.83
+        ]
+      ],
+      "sigma_eff_m": 241.1,
+      "risk_score": 0.0721,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.054,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.547,
+        "logit": -2.556
+      }
+    },
+    {
+      "norad_cat_id": 33773,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051L",
+      "d_miss_m": 52433.72,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2593.3,
+      "covariance": [
+        [
+          50158.13,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          32101.2,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          18056.93
+        ]
+      ],
+      "sigma_eff_m": 224.0,
+      "risk_score": 0.0701,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.054,
+        "f_v": 0.194,
+        "f_t": 0.013,
+        "f_sigma": 0.528,
+        "logit": -2.585
+      }
+    },
+    {
+      "norad_cat_id": 33776,
+      "object_name": "IRIDIUM 33 DEB",
+      "object_id": "1997-051P",
+      "d_miss_m": 54964.01,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2580.0,
+      "covariance": [
+        [
+          49128.2,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          31442.04,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          17686.15
+        ]
+      ],
+      "sigma_eff_m": 221.6,
+      "risk_score": 0.0692,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.052,
+        "f_v": 0.194,
+        "f_t": 0.014,
+        "f_sigma": 0.526,
+        "logit": -2.599
+      }
+    },
+    {
+      "norad_cat_id": 29735,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025Z",
+      "d_miss_m": 144267.14,
+      "v_rel_kms": 1.74,
+      "t_tca_s": 2660.0,
+      "covariance": [
+        [
+          41697.51,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          26686.4,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          15011.1
+        ]
+      ],
+      "sigma_eff_m": 204.2,
+      "risk_score": 0.0681,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.02,
+        "f_v": 0.258,
+        "f_t": 0.012,
+        "f_sigma": 0.505,
+        "logit": -2.617
+      }
+    },
+    {
+      "norad_cat_id": 29738,
+      "object_name": "FENGYUN 1C DEB",
+      "object_id": "1999-025AC",
+      "d_miss_m": 152466.09,
+      "v_rel_kms": 1.75,
+      "t_tca_s": 2640.0,
+      "covariance": [
+        [
+          29951.7,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          19169.09,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          10782.61
+        ]
+      ],
+      "sigma_eff_m": 173.1,
+      "risk_score": 0.064,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.019,
+        "f_v": 0.259,
+        "f_t": 0.012,
+        "f_sigma": 0.464,
+        "logit": -2.683
+      }
+    },
+    {
+      "norad_cat_id": 24946,
+      "object_name": "IRIDIUM 33",
+      "object_id": "1997-051C",
+      "d_miss_m": 56696.39,
+      "v_rel_kms": 1.2,
+      "t_tca_s": 2600.0,
+      "covariance": [
+        [
+          27477.99,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          17585.91,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          9892.08
+        ]
+      ],
+      "sigma_eff_m": 165.8,
+      "risk_score": 0.0616,
+      "risk_level": "LOW",
+      "tactical_action": "NOMINAL_PASS",
+      "explain": {
+        "f_d": 0.05,
+        "f_v": 0.194,
+        "f_t": 0.013,
+        "f_sigma": 0.453,
+        "logit": -2.723
+      }
+    }
+  ]
+}

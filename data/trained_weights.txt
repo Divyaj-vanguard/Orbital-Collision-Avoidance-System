@@ -1,0 +1,15 @@
+# OCAS Trained Logistic Regression Weights
+# Team: DSCPP-III-2026-T018 | Graphic Era University
+# Source: ESA Kelvins CA Challenge (162,634 CDM records)
+# Method: Mini-batch SGD | Epochs=300 | Batch=512 | ClassWeight=226
+# Optimal threshold=0.9900000000 | F1(test)=0.1620
+#
+w_bias      -0.1222
+w_dist      8.9520
+w_vel       -2.1527
+w_tca       -4.5139
+w_cov       -0.3941
+ref_dist_m  1000.0000
+ref_vel_kms 12.2600
+ref_tau_s   285689.0000
+ref_sigma_m 4256.0000
