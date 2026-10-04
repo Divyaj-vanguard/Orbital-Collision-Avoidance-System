@@ -1,0 +1,14 @@
+$env:Path = "C:\msys64\ucrt64\bin;" + $env:Path
+
+g++ --version
+
+g++ -std=c++17 -pthread cpp/main.cpp cpp/CircularQueue.cpp -o cpp/main.exe `
+-I"C:\Users\HP\AppData\Local\Programs\Python\Python313\Include" `
+-I"C:\Users\HP\AppData\Local\Programs\Python\Python313\Lib\site-packages\pybind11\include" `
+-L"C:\Users\HP\AppData\Local\Programs\Python\Python313\libs" `
+-lpython313
+
+$env:PYTHONPATH = "$PWD\ml"
+
+.\cpp\main.exe
+
