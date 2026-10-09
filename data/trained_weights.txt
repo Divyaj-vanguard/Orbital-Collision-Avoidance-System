@@ -13,3 +13,4 @@ ref_dist_m  1000.0000
 ref_vel_kms 12.2600
 ref_tau_s   285689.0000
 ref_sigma_m 4256.0000
+decision_threshold 0.9900
