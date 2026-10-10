@@ -1,71 +1,47 @@
 #!/usr/bin/env bash
 # ============================================================================
 # OCAS: Autonomous Orbital Collision Avoidance System
-# Unified Master Build & Execution Orchestrator (100% C/C++, Zero Python)
-# Team ID: DSCPP-III-2026-T018 | Graphic Era University
+# Build, verify and run every scenario.  Team DSCPP-III-2026-T018 | GEU
+#   ./run_ocas.sh              full run
+#   ./run_ocas.sh --no-build   reuse an existing build/
+# Requires: a C++17 compiler, CMake >= 3.16, and Ninja or Make.
 # ============================================================================
-set -e
+set -euo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+BUILD_DIR=build
+BIN="$BUILD_DIR/bin"
+step() { printf '\n\033[1;36m[%s]\033[0m %s\n' "$1" "$2"; }
 
-echo "================================================================================"
-echo "  OCAS: Autonomous Orbital Collision Avoidance System"
-echo "  Safety-Critical Flight Software Pipeline (100% C/C++, Zero Python)"
-echo "  Team ID: DSCPP-III-2026-T018 | Graphic Era University"
-echo "================================================================================"
-echo ""
-
-# 1. Environment & Toolchain Validation (Zero Python Dependency)
-echo "[STEP 1/5] Validating native toolchain and flight software compilers..."
-for tool in gcc g++ make; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "ERROR: Required tool '$tool' is not installed or not in PATH."
-        exit 1
+if [[ "${1:-}" != "--no-build" ]]; then
+    command -v cmake >/dev/null || { echo "error: cmake not found (e.g. 'sudo zypper install cmake ninja' or 'sudo apt install cmake ninja-build')"; exit 1; }
+    GEN="Unix Makefiles"
+    command -v ninja >/dev/null && GEN="Ninja"
+    if ! command -v ninja >/dev/null && ! command -v make >/dev/null; then
+        echo "error: neither ninja nor make found"; exit 1
     fi
-done
-echo "           Found: $(gcc --version | head -n1)"
-echo "           Found: $(g++ --version | head -n1)"
-echo "           Verification: Zero Python files in runtime execution pipeline."
-
-# 2. Compilation with Strict Aerospace Constraints (-Wall -Wextra -Werror -pedantic)
-echo ""
-echo "[STEP 2/5] Compiling C11 Ingestion Layer, C++17 Core Engine, Tools & Server..."
-make clean >/dev/null 2>&1 || true
-make all
-
-# 3. Automated Verification Test Suite Execution
-echo ""
-echo "[STEP 3/5] Executing automated flight software verification suite..."
-./bin/test_ocas
-
-# 4. Ingesting Real CelesTrak Debris & Synthesizing CDMs via Native C++
-echo ""
-echo "[STEP 4/5] Running Native C++ CelesTrak Ingestion, ML Classifier & Tsiolkovsky Engine..."
-./bin/generate_cdms data/sample_cdms.json
-./bin/celestrak_ingest data/celestrak_debris_catalog.json data/celestrak_scored_threats.json
-
-# 5. Executing Autonomous Flight Software Demonstration
-echo ""
-echo "[STEP 5/5] Running OCAS Autonomous Flight Executive Simulation..."
-./bin/ocas_flight_exec
-
-echo ""
-echo "================================================================================"
-echo "  BUILD & SIMULATION COMPLETED SUCCESSFULLY (ZERO FAULTS, ALL CONSTRAINTS MET)"
-echo "================================================================================"
-
-# If --no-server is passed, stop here
-if [[ "$1" == "--no-server" || "$1" == "--batch" || "$1" == "--test-only" ]]; then
-    echo "Batch test completed successfully. Exiting."
-    exit 0
+    step "1/6" "Configure + build (-std=c++17 -Wall -Wextra -Werror -pedantic -O3, generator: $GEN)"
+    if [[ -f "$BUILD_DIR/CMakeCache.txt" ]] && ! grep -q "CMAKE_GENERATOR:INTERNAL=$GEN" "$BUILD_DIR/CMakeCache.txt"; then
+        rm -rf "$BUILD_DIR"   # generator changed; CMake refuses to switch in place
+    fi
+    cmake -S . -B "$BUILD_DIR" -G "$GEN" -DCMAKE_BUILD_TYPE=Release >/dev/null
+    cmake --build "$BUILD_DIR"
 fi
 
-# Launch Interactive 3D Web Visualizer & Telemetry Bridge via Native C++ Server
-echo ""
-echo ">>> Starting OCAS Interactive 3D Ground Control Visualizer Server (Native C++17)..."
-echo ">>> Open your browser at: http://localhost:8080"
-echo ">>> Press CTRL+C to terminate the visualizer daemon."
-echo ""
+step "2/6" "Verification suite"
+"$BIN/test_ocas"
 
-exec ./bin/ocas_web_server 8080
+step "3/6" "Offline evaluation on ESA Kelvins test vectors (label: Pc > 1e-4)"
+"$BIN/ocas_flight_exec" --evaluate
+
+step "4/6" "LEO host (550 km): full ESA stream, 24,484 real CDMs"
+"$BIN/ocas_flight_exec" --altitude-km 550 --quiet --summary-every 200
+
+step "5/6" "GEO host (35,786 km) and MEO host (20,200 km): SYNTHETIC vectors, external aborts on GEO"
+"$BIN/ocas_flight_exec" --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3 --summary-every 0
+"$BIN/ocas_flight_exec" --input data/synthetic_meo_vectors.csv --altitude-km 20200 --batch 8 --summary-every 0
+
+step "6/6" "Stress: 80-CDM bursts into the 64-slot ingest ring buffer (overwrite policy)"
+"$BIN/ocas_flight_exec" --batch 80 --max-cdms 800 --quiet --summary-every 0
+
+printf '\n\033[1;32mAll stages completed.\033[0m Audit trail: logs/flight_audit.log\n'

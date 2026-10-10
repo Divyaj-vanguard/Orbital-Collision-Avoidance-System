@@ -1,64 +1,65 @@
+# ============================================================================
+# OCAS: Autonomous Orbital Collision Avoidance System
+# Team DSCPP-III-2026-T018 | Graphic Era University
+# Pure C++17 build. Every target compiles with
+#   -std=c++17 -Wall -Wextra -Werror -pedantic -O3
+# ============================================================================
 cmake_minimum_required(VERSION 3.16)
-project(OCAS_Orbital_Collision_Avoidance
-    VERSION 1.0.0
-    DESCRIPTION "Autonomous Orbital Collision Avoidance System - Team DSCPP-III-2026-T018 (100% C/C++)"
-    LANGUAGES C CXX
-)
+project(OCAS VERSION 2.0.0
+        DESCRIPTION "Autonomous Orbital Collision Avoidance System - evasion advisory engine"
+        LANGUAGES CXX)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Safety-Critical Strict Compiler Flags
+option(OCAS_BUILD_TOOLS "Build offline dataset and training tools" ON)
+
 if(MSVC)
-    add_compile_options(/W4 /WX)
+    set(OCAS_FLAGS /std:c++17 /W4 /WX /O2)
 else()
-    add_compile_options(-Wall -Wextra -Werror -pedantic -O2 -g)
+    set(OCAS_FLAGS -std=c++17 -Wall -Wextra -Werror -pedantic -O3)
 endif()
 
-# Global Include Directories
-include_directories(include)
-
-# Module 1: C11 Ingestion Layer (Static Library)
-add_library(ocas_c_ingestion STATIC
-    src/c_ingestion/ring_buffer.c
-    src/c_ingestion/fifo_queue.c
+# ---- Core library: Modules 1-5 + orchestrator + telemetry -------------------
+add_library(ocas_core STATIC
+    src/core/types.cpp
+    src/core/cdm_io.cpp
+    src/risk/risk_classifier.cpp
+    src/priority/max_heap.cpp
+    src/regime/regime_factory.cpp
+    src/persistence/state_caretaker.cpp
+    src/persistence/mission_ledger.cpp
+    src/persistence/flight_audit_logger.cpp
+    src/pipeline/ocas_pipeline.cpp
+    src/telemetry/terminal_telemetry.cpp
 )
-set_target_properties(ocas_c_ingestion PROPERTIES C_STANDARD 11)
+target_include_directories(ocas_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(ocas_core PUBLIC ${OCAS_FLAGS})
 
-# Modules 2-4: C++17 Core Engine (Risk, Propulsion, Persistence, Orchestrator)
-add_library(ocas_cpp_engine STATIC
-    src/cpp_engine/risk_engine.cpp
-    src/cpp_engine/thruster_engine.cpp
-    src/cpp_engine/persistence.cpp
-    src/cpp_engine/ocas_system.cpp
-)
-target_link_libraries(ocas_cpp_engine PRIVATE ocas_c_ingestion)
+# ---- Flight executive (Module 6) --------------------------------------------
+# alloc_tracker.cpp replaces global operator new to verify zero allocations
+# inside the cyclic loop, so it is linked into this executable only.
+add_executable(ocas_flight_exec src/main.cpp src/core/alloc_tracker.cpp)
+target_link_libraries(ocas_flight_exec PRIVATE ocas_core)
 
-# 1. Flight Executive Application Executable
-add_executable(ocas_flight_exec src/main.cpp)
-target_link_libraries(ocas_flight_exec PRIVATE ocas_cpp_engine ocas_c_ingestion)
+# ---- Verification suite -------------------------------------------------------
+enable_testing()
+add_executable(test_ocas tests/test_ocas.cpp)
+target_link_libraries(test_ocas PRIVATE ocas_core)
+add_test(NAME ocas_unit_tests COMMAND test_ocas)
 
-# 2. Verification Test Suite Executable
-add_executable(test_ocas src/tests/test_ocas.cpp)
-target_link_libraries(test_ocas PRIVATE ocas_cpp_engine ocas_c_ingestion)
+# ---- Offline ground tools (not flight software) -----------------------------
+if(OCAS_BUILD_TOOLS)
+    foreach(tool clean_esa_dataset train_lr_model compact_cdm_dataset generate_synthetic_vectors)
+        add_executable(${tool} tools/${tool}.cpp)
+        target_link_libraries(${tool} PRIVATE ocas_core)
+    endforeach()
+endif()
 
-# 3. Native C++ CDM Synthesizer
-add_executable(generate_cdms src/data_tools/generate_cdms.cpp)
-target_link_libraries(generate_cdms PRIVATE ocas_cpp_engine ocas_c_ingestion)
-
-# 4. Native C++ CelesTrak Ingestion & Tsiolkovsky Engine
-add_executable(celestrak_ingest src/data_tools/celestrak_ingest.cpp)
-target_link_libraries(celestrak_ingest PRIVATE ocas_cpp_engine ocas_c_ingestion)
-
-# 5. Native C++ Embedded HTTP/1.1 Web Server
-add_executable(ocas_web_server src/server/web_server.cpp)
-target_link_libraries(ocas_web_server PRIVATE ocas_cpp_engine ocas_c_ingestion)
-
-# Output all binaries directly to bin/
-set_target_properties(ocas_flight_exec PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
-set_target_properties(test_ocas PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
-set_target_properties(generate_cdms PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
-set_target_properties(celestrak_ingest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
-set_target_properties(ocas_web_server PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(ocas_flight_exec test_ocas PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+if(OCAS_BUILD_TOOLS)
+    set_target_properties(clean_esa_dataset train_lr_model compact_cdm_dataset generate_synthetic_vectors
+                          PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
