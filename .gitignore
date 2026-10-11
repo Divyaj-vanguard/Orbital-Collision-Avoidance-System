@@ -65,6 +65,19 @@ package-lock.json
 *~
 *.tmp
 *.bak
+
+*.swp
+
+# vcpkg
+vcpkg_installed/
+
+# debug information files
+*.dwo
+
+# test output & cache
+Testing/
+.cache/
+AutonomousOrbitalCollisionSystem/ml/model.pkl
 .DS_Store
 Thumbs.db
 # ---- Generated metric reports ------------------------------------------------
@@ -72,3 +85,6 @@ results/*
 !results/python_lstm_metrics.txt
 # Random Forest model (110 MB, over the GitHub limit): share it outside git
 *.pkl
+# Autonomous Orbital Collision System
+AutonomousOrbitalCollisionSystem/ml/__pycache__/
+AutonomousOrbitalCollisionSystem/cpp/main.exe
