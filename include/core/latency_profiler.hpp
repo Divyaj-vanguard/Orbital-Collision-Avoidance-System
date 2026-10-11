@@ -1,7 +1,9 @@
 // ============================================================================
 // OCAS profiling hooks: fixed-bin latency histogram (no heap) and a scoped
-// timer. 25 ns bins up to 100 us; samples above that land in an overflow bin
-// and are still reflected exactly in max().
+// timer. Two tiers: 25 ns bins up to 100 us (per-CDM work), then 10 us bins up
+// to 10 ms (whole cycles, which include audit-log flushes and, with the LSTM,
+// exceed 100 us). Samples above 10 ms land in an overflow bin; a percentile
+// that falls there reports max(), the only exact value left.
 // ============================================================================
 #ifndef OCAS_CORE_LATENCY_PROFILER_HPP
 #define OCAS_CORE_LATENCY_PROFILER_HPP
@@ -17,10 +19,17 @@ class LatencyProfiler {
 public:
     static constexpr std::uint64_t kBinNs = 25;
     static constexpr std::size_t kBins = 4000;  // 4000 * 25 ns = 100 us
+    static constexpr std::uint64_t kFineLimitNs = kBins * kBinNs;
+    static constexpr std::uint64_t kCoarseBinNs = 10'000;
+    static constexpr std::size_t kCoarseBins = 990;  // 100 us + 990 * 10 us = 10 ms
 
     void record(std::uint64_t ns) noexcept {
-        const std::size_t bin = static_cast<std::size_t>(ns / kBinNs);
-        ++bins_[bin < kBins ? bin : kBins];
+        std::size_t bin = static_cast<std::size_t>(ns / kBinNs);
+        if (bin >= kBins) {
+            const std::size_t coarse = static_cast<std::size_t>((ns - kFineLimitNs) / kCoarseBinNs);
+            bin = kBins + (coarse < kCoarseBins ? coarse : kCoarseBins);
+        }
+        ++bins_[bin];
         ++count_;
         sum_ns_ += ns;
         if (count_ == 1 || ns < min_ns_) min_ns_ = ns;
@@ -32,9 +41,11 @@ public:
         if (count_ == 0) return 0;
         const auto target = static_cast<std::uint64_t>(q * static_cast<double>(count_ - 1)) + 1;
         std::uint64_t seen = 0;
-        for (std::size_t i = 0; i < kBins; ++i) {
+        for (std::size_t i = 0; i < kBins + kCoarseBins; ++i) {
             seen += bins_[i];
-            if (seen >= target) return (static_cast<std::uint64_t>(i) + 1) * kBinNs;
+            if (seen < target) continue;
+            if (i < kBins) return (static_cast<std::uint64_t>(i) + 1) * kBinNs;
+            return kFineLimitNs + (static_cast<std::uint64_t>(i - kBins) + 1) * kCoarseBinNs;
         }
         return max_ns_;
     }
@@ -47,7 +58,7 @@ public:
     }
 
 private:
-    std::array<std::uint64_t, kBins + 1> bins_{};
+    std::array<std::uint64_t, kBins + kCoarseBins + 1> bins_{};
     std::uint64_t count_ = 0;
     std::uint64_t sum_ns_ = 0;
     std::uint64_t min_ns_ = 0;

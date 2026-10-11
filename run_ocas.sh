@@ -31,7 +31,7 @@ fi
 step "2/6" "Verification suite"
 "$BIN/test_ocas"
 
-step "3/6" "Offline evaluation on ESA Kelvins test vectors (label: Pc > 1e-4)"
+step "3/6" "Offline evaluation on ESA Kelvins test vectors (label: Pc > 1e-4; LSTM vs fallback)"
 "$BIN/ocas_flight_exec" --evaluate
 
 step "4/6" "LEO host (550 km): full ESA stream, 24,484 real CDMs"

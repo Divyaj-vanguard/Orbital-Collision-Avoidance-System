@@ -67,3 +67,8 @@ package-lock.json
 *.bak
 .DS_Store
 Thumbs.db
+# ---- Generated metric reports ------------------------------------------------
+results/*
+!results/python_lstm_metrics.txt
+# Random Forest model (110 MB, over the GitHub limit): share it outside git
+*.pkl

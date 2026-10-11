@@ -1,0 +1,7 @@
+# Python side of OCAS: the risk LSTM called from C++ (cpp/main.cpp) through PyBind11.
+# Versions tested on 2026-10-10 (Python 3.11). Install the CPU build of PyTorch:
+#   uv venv .venv_lstm --python 3.11
+#   uv pip install --python .venv_lstm/bin/python -r ml/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1
+numpy==2.4.6
+pybind11==3.1.0

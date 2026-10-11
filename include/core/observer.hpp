@@ -22,6 +22,7 @@ struct SessionInfo {
     double altitude_km = 0.0;
     double orbital_period_s = 0.0;
     double dv_budget_mps = 0.0;
+    RiskModel primary_model = RiskModel::Lstm;
     double decision_threshold = 0.0;
     std::uint32_t abort_every_n = 0;
     const char* input_label = "";
@@ -33,7 +34,7 @@ struct CycleStats {
     std::size_t rejected_input = 0;
     std::size_t scored = 0;
     std::size_t actionable = 0;
-    std::size_t logistic_used = 0;
+    std::size_t model_used = 0;     ///< CDMs scored by the trained LSTM
     std::size_t fallback_used = 0;
     std::size_t directives = 0;
     std::size_t committed = 0;

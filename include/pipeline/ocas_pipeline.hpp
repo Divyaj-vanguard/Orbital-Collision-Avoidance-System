@@ -42,8 +42,7 @@ struct PipelineConfig {
     std::size_t max_advisories_per_cycle = 8;
     std::uint32_t abort_every_n = 0;           ///< Simulated external abort on every Nth staged advisory; 0 = off
     double priority_model_weight = 0.7;        ///< priority = w * model score + (1 - w) * regime risk
-    LogisticModelParams logistic{};
-    ConservativeParams conservative{};
+    RiskModelConfig risk{};                    ///< Primary model choice + all model parameters
     const char* input_label = "";
 };
 

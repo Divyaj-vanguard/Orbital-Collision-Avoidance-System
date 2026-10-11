@@ -1,377 +1,338 @@
 # OCAS: Autonomous Orbital Collision Avoidance System
-<<<<<<< HEAD
-**Team ID**: `DSCPP-III-2026-T018`  
-**Institution**: Graphic Era University  
-**Architecture**: Pure C11 (Data Structures) + C++17 (Object-Oriented Physics & Control Engine) + Three.js/WebGL (Interactive Ground Control Visualizer)
+
+**Team ID:** DSCPP-III-2026-T018 · **Institution:** Graphic Era University, Department of CSE
+**Faculty mentor:** Dr. Narayan Chaturvedi · **Language:** C++17 only · **Build:** CMake
+
+OCAS is a headless, onboard **threat detection, classification and evasion advisory engine**.
+It ingests Conjunction Data Messages (CDMs), scores collision risk with an explainable model,
+ranks threats, and emits a platform-agnostic **Evasion Advisory Directive** (delta-v magnitude,
+RTN direction, maneuver plane, execution deadline, urgency) for the spacecraft's own flight
+control unit (FCU).
+
+OCAS deliberately does **not** command thrusters. Propulsion hardware differs between buses
+and manufacturers, so actuation belongs to the OEM FCU. This mirrors a fly-by-wire flight
+computer or a missile approach warning system: OCAS decides *what* should happen and *by when*.
 
 ---
 
-## 1. System Overview & Architecture
+## 1. Contributors
 
-OCAS (Autonomous Orbital Collision Avoidance System) is a safety-critical aerospace flight software system designed to automate spacecraft conjunction assessment and evasion. It guarantees **zero dynamic heap allocation** during execution loops, **deterministic $\mathcal{O}(1)$ / $\mathcal{O}(\log n)$ runtime bounds**, **100% explainable edge AI**, and **aerospace fault tolerance**.
-
-```
-[CDMs & Satellite Telemetry Stream]
-                 │
-                 ▼
-[C11 Static Circular Ring Buffer & Ingestion FIFO Queue]
-├── 64-byte Cache-Aligned Structures (SatelliteState, CDMAlert)
-├── Overwrite-Oldest Telemetry Policy (Zero Malloc/Free)
-└── Drop-Newest FIFO Queue Protection
-                 │
-                 ▼
-[Explainable Edge ML Risk Engine]
-├── In-Place Logistic Regression Model (Features: d_miss, v_rel, t_TCA, Tr(Sigma))
-├── Constant-time O(1) closed-form logit calculation
-└── Discrete Risk Categorization (CRITICAL, HIGH, MODERATE, LOW)
-                 │
-                 ▼
-[Custom Embedded Binary Max-Heap Priority Queue]
-├── Zero STL container overhead (Fixed raw array implementation)
-├── O(1) peek of highest-risk threat at root
-└── O(log n) threat insertion and extraction
-                 │
-                 ▼
-[C++17 Polymorphic Propulsion Dispatcher]
-├── Base Class: ThrusterEngine
-├── Concrete Derived Classes:
-│   ├── ChemicalThruster   (400 N,  310 s Isp)
-│   ├── IonThruster        (0.1 N, 3200 s Isp)
-│   └── ColdGasThruster    (10 N,    70 s Isp)
-└── Tsiolkovsky Gate & Automated Fallback Arbitration
-    ├── Delta-m = m0 * (1 - e^(-dV / (Isp * g0)))
-    ├── Burn Window Check: t_burn < t_TCA
-    └── Automated Fallback on Subsystem Health Faults
-                 │
-                 ▼
-[Persistence & Flight Audit Layer]
-├── LIFO State Stack (Instant O(1) pre-maneuver abort rollback)
-├── Static-Pool Doubly Linked List (Bidirectional chronological mission ledger)
-└── Append-Only Structured JSON Logger (logs/flight_audit.log)
-                 │
-                 ▼
-[Interactive 3D WebGL Dashboard & Operations Station]
-├── Real-time 3D Earth, Orbit Trails, Conjunction Rays, and 3D Covariance Ellipsoids
-├── Live Telemetry HUD, MET Clock, Fuel Gauge, and Max-Heap Tree Monitor
-└── Interactive Fault Injection (Valve Fault, Debris Surge, LIFO Rollback)
-```
+| Roll No. | Name | Role |
+| :-- | :-- | :-- |
+| 2510011013 | Adamya Rawat | Team lead, system architecture |
+| 2510381135 | Atiksh Sharma | Core backend engineer |
+| 2510385597 | Agamya Saini | QA and validation |
+| 2510370197 | Krishna Sehgal | Research and documentation |
 
 ---
 
-## 2. Directory Structure
+## 2. Architecture
 
 ```
-.
-├── CMakeLists.txt              # Strict root CMake build configuration (-Wall -Wextra -Werror -pedantic)
-├── Makefile                    # Native GNU Makefile with static archives
-├── README.md                   # System documentation & architectural reference
-├── run_ocas.sh                 # Unified master build, test, and visualizer runner
-├── include/
-│   ├── c_ingestion.h           # Pure C11 cache-aligned structs, ring buffer & FIFO queue APIs
-│   ├── risk_engine.hpp         # In-place Logistic Regression model & custom Binary Max-Heap
-│   ├── thruster_engine.hpp     # Polymorphic propulsion dispatcher, engines & Tsiolkovsky physics
-│   ├── persistence.hpp         # LIFO State Stack, Doubly Linked List Ledger, JSON Logger
-│   └── ocas_system.hpp         # Unified OCAS flight software coordinator
-├── src/
-│   ├── c_ingestion/
-│   │   ├── ring_buffer.c       # C11 circular ring buffer (overwrite-oldest)
-│   │   └── fifo_queue.c        # C11 static FIFO queue (bounded drop-on-full)
-│   ├── cpp_engine/
-│   │   ├── risk_engine.cpp     # Logistic regression evaluation & heap sift up/down
-│   │   ├── thruster_engine.cpp # Tsiolkovsky propellant mass, burn time, fallback arbitration
-│   │   ├── persistence.cpp     # Pre-maneuver snapshot stack, static node pool ledger, logger
-│   │   └── ocas_system.cpp     # Autonomous avoidance cycle & JSON export
-│   ├── main.cpp                # Flight Executive demonstration & CLI
-│   └── tests/
-│       └── test_ocas.cpp       # 100% pass verification test suite
-├── data/
-│   ├── generate_cdms.py        # CCSDS Conjunction Data Message synthesizer
-│   ├── sample_cdms.json        # Generated test encounter callsets
-│   └── sample_encounter.cdm    # CCSDS KVN formatted encounter file
-├── logs/
-│   └── flight_audit.log        # Append-only structured JSON flight audit log
-├── scripts/
-│   └── server.py               # Lightweight simulation HTTP server & visualizer bridge
-├── visualizer/
-│   ├── index.html              # Modern 3D WebGL Ground Control Dashboard
-│   ├── css/
-│   │   └── style.css           # Mission control styling & HUD components
-│   └── js/
-│       ├── orbit_3d.js         # Three.js 3D Earth, orbit, covariance ellipsoid visualizer
-│       └── app.js              # Telemetry sync, heap table rendering, fault injection controls
-└── Phase-1_report/
-    └── PROJECT-BASED LEARNING.pptx # Preserved academic presentation
+ CDM CSV ──► CircularBuffer<64> ──► RiskClassifier ──► OrbitalRegimeStrategy ──► MaxHeap<64>
+ (ground      overwrite-oldest       │ LSTM (in-domain)        regime risk           ThreatComparator
+  uplink)     overflow counted       └ Conservative (fallback)                          │
+                                                                                        ▼
+  FlightAuditLogger ◄── Observer ◄── MissionLedger ◄── StateCaretaker ◄── formulate_evasion_directive()
+  TerminalTelemetry      events       (doubly linked,    (Memento LIFO:        LEO / MEO / GEO
+                                       fixed pool)        checkpoint, unwind)
 ```
+
+| Module | Files | Pattern / technique |
+| :-- | :-- | :-- |
+| 1. Ingestion buffer | `include/ingestion/circular_buffer.hpp` | Class template `CircularBuffer<T, N>` on `std::array`, 64-byte aligned, overwrite-oldest with overflow counter |
+| 2. Risk classifier | `include/risk/risk_strategy.hpp`, `src/risk/risk_classifier.cpp` | Strategy: `IRiskStrategy` → `LstmStrategy`, `ConservativeThresholdStrategy`; `RiskClassifier` is the context and records *why* it chose a model |
+| 3. Priority ranking | `include/priority/max_heap.hpp`, `src/priority/max_heap.cpp` | `MaxHeap<T, N, Compare>` over a fixed array with hole-based sift, `ThreatComparator` functor |
+| 4. Regime and advisory | `include/regime/regime_strategy.hpp`, `src/regime/regime_factory.cpp` | Strategy + Factory: `OrbitalRegimeStrategy` → `LEORegime`, `MEORegime`, `GEORegime`; `RegimeFactory::create_regime(altitude_km)` |
+| 5. Persistence | `include/persistence/*.hpp`, `src/persistence/*.cpp` | Memento (`Spacecraft`, `SpacecraftMemento`, `StateCaretaker`, `StateStack<T, N>`); doubly linked `MissionLedger` on a node pool; RAII `FlightAuditLogger` |
+| 6. Orchestrator | `include/pipeline/ocas_pipeline.hpp`, `src/pipeline/ocas_pipeline.cpp`, `src/main.cpp` | Observer (`IPipelineObserver`, fixed `ObserverRegistry`), latency profiler, allocation counter |
+
+Supporting code lives in `include/core/` (domain types, CSV/JSON I/O, observer, profiler) and
+`include/telemetry/` (ANSI terminal output).
+
+### Real-time guarantees
+
+* **No heap allocation inside the cyclic loop.** Every container the loop touches is a fixed-capacity
+  member. `src/core/alloc_tracker.cpp` replaces global `operator new` in the flight executable and the
+  run prints the count of allocations between the first and last cycle. The executable exits with
+  status 3 if that count is not zero. Allocation happens only at init (dataset load, strategy objects).
+* **Bounded work per operation.** Buffer push/pop O(1), heap push/pop O(log n) and top O(1), risk
+  scoring O(1), memento checkpoint and single rollback O(1), ledger append O(1).
+* **No silent data loss.** Ring-buffer overwrites, heap rejections and ledger evictions are counted
+  and reported.
 
 ---
 
-## 3. Mathematical & Algorithmic Formulation
+## 3. Data
 
-### 3.1 Explainable Edge ML: Logistic Regression Risk Model
-The model evaluates collision probability $P_{\text{col}} \in [0.0, 1.0]$ in constant time $\mathcal{O}(1)$ using 4 normalized aerospace features:
-1. **Normalized Miss Distance Factor**:
-   $$f_D = 1.0 - \frac{d_{\text{miss}}}{d_{\text{miss}} + d_{\text{ref}}} \quad (d_{\text{ref}} = 3000.0\text{ m})$$
-2. **Normalized Relative Velocity Factor**:
-   $$f_V = \frac{v_{\text{rel}}}{v_{\text{rel}} + v_{\text{ref}}} \quad (v_{\text{ref}} = 5.0\text{ km/s})$$
-3. **Normalized Temporal Urgency Factor**:
-   $$f_T = \exp\left(-\frac{t_{\text{TCA}}}{\tau_{\text{ref}}}\right) \quad (\tau_{\text{ref}} = 600.0\text{ s})$$
-4. **Normalized Positional Uncertainty (Covariance Trace)**:
-   $$\sigma_{\text{eff}} = \sqrt{\mathrm{Tr}(\sigma)} = \sqrt{\sigma_{xx} + \sigma_{yy} + \sigma_{zz}}, \quad f_\Sigma = \frac{\sigma_{\text{eff}}}{\sigma_{\text{eff}} + \sigma_{\text{ref}}} \quad (\sigma_{\text{ref}} = 200.0\text{ m})$$
+| File | Rows | Origin |
+| :-- | --: | :-- |
+| `data/cleaned_cdm_dataset.csv` | 24,484 | **Real.** ESA Kelvins Collision Avoidance Challenge test set, 2,167 events, reduced by `tools/compact_cdm_dataset` |
+| `data/synthetic_meo_vectors.csv` | 48 | **Synthetic.** `tools/generate_synthetic_vectors`, seed 2026 |
+| `data/synthetic_geo_vectors.csv` | 48 | **Synthetic.** same tool |
+| `data/models/lstm_weights.txt` | – | Output of `tools/ml/train_lstm`, same split and seed |
+| `data/external/derived/socrates_{leo,meo,geo}.csv` | 187,878 / 16 / 33 | **Real, but no covariance.** CelesTrak SOCRATES snapshot of 2026-10-09, split by the primary's regime |
+| `data/external/derived/nasa_cara_test_cdms.csv` | 3 | **Real format, test cases.** CCSDS CDMs published in NASA CARA_Analysis_Tools |
 
-**Logit Evaluation & Sigmoidal Transfer**:
-$$z = w_0 + w_D f_D + w_V f_V + w_T f_T + w_\Sigma f_\Sigma$$
-$$P_{\text{col}} = \frac{1}{1 + e^{-z}}$$
+`tools/datasets/fetch_public_data.sh` downloads the external sources, converts them, and appends each file's
+URL, time, size and SHA-256 to `data/external/fetch_manifest.txt`. SOCRATES is a live feed, so a later fetch
+gives different data. SOCRATES screens TLEs and publishes no covariance, so every SOCRATES row goes to the
+conservative fallback. Its `MAX_PROB` is an upper bound on Pc, not an operational Pc, so these files exercise
+the MEO and GEO paths with real geometry but **cannot be used to score a classifier**.
 
-*Weights*: $w_0 = -4.20$, $w_D = +4.50$, $w_V = +2.50$, $w_T = +3.20$, $w_\Sigma = +1.60$.
-
----
-
-### 3.2 Propulsion Physics & Tsiolkovsky Rocket Equation
-- **Exhaust Velocity**:
-  $$v_e = I_{\text{sp}} \cdot g_0 \quad (g_0 = 9.80665\text{ m/s}^2)$$
-- **Propellant Mass Required**:
-  $$\Delta m = m_0 \cdot \left(1 - \exp\left(-\frac{\Delta V}{I_{\text{sp}} \cdot g_0}\right)\right)$$
-- **Propellant Mass Flow Rate**:
-  $$\dot{m} = \frac{F_{\text{thrust}}}{I_{\text{sp}} \cdot g_0}$$
-- **Required Burn Time**:
-  $$t_{\text{burn}} = \frac{\Delta m}{\dot{m}} = \frac{m_0 \cdot I_{\text{sp}} \cdot g_0 \cdot \left(1 - \exp\left(-\frac{\Delta V}{I_{\text{sp}} \cdot g_0}\right)\right)}{F_{\text{thrust}}}$$
-
-**Automated Fallback Rule**:
-If an engine is faulted or $\Delta m > m_{\text{fuel}}$ or $t_{\text{burn}} \ge t_{\text{TCA}}$ (cannot finish burn before closest approach), the dispatcher automatically falls back sequentially to the next viable thruster in the chain:
-$$\text{Chemical} \longrightarrow \text{Ion} \longrightarrow \text{Cold Gas}$$
-
----
-
-## 4. Build & Execution Instructions
-
-### Prerequisites
-- Compilers: `gcc` (C11 support) and `g++` (C++17 support)
-- Utilities: `make` (GNU Make), `python3` (v3.8+)
-
-### One-Click Master Execution
-```bash
-./run_ocas.sh
-```
-This script will:
-1. Validate compiler tools.
-2. Compile both C11 static library and C++17 engine binaries with strict flags (`-Wall -Wextra -Werror -pedantic`).
-3. Run the complete automated verification test suite (`./bin/test_ocas`).
-4. Synthesize 15 realistic CCSDS Conjunction Data Messages.
-5. Execute the end-to-end flight software simulation demonstration.
-6. Launch the interactive 3D Web Visualizer at `http://localhost:8080`.
-
-### Running Verification Tests Only
-```bash
-make test
-```
-
-### Running Flight Executive Simulation in Terminal
-```bash
-make run
-```
-
-### Starting 3D Web Visualizer Ground Control Station
-```bash
-python3 scripts/server.py 8080
-```
-Open `http://localhost:8080` in your web browser.
-=======
-**Project-Based Learning (PBL)**  
-*Department of Computer Science & Engineering, Graphic Era (Deemed to be University), Dehradun*  
-**Academic Session:** 2026–2027 | **Course Integration:** Data Structures in C & Object-Oriented Programming in C++
-
----
-
-## 1. Executive Summary
-The **Autonomous Orbital Collision Avoidance System (OCAS)** is a hard real-time, deterministic embedded software engine designed for Low-Earth Orbit (LEO) satellite platforms. As mega-constellations and orbital debris multiply, satellite operators face critical alert fatigue and narrow reaction windows. 
-
-OCAS provides an onboard, zero-heap edge computing pipeline that ingests CCSDS Conjunction Data Messages (CDMs), evaluates collision probability through an explainable multi-parameter Logistic Regression classifier, ranks critical threats via a Binary Max-Heap, and autonomously executes thruster maneuvers using C++ OOP polymorphism and Tsiolkovsky’s rocket physics.
-
----
-
-## 2. Core Project Contributors
-
-| Roll Number | Name | Primary Role | Domain Responsibilities |
-| :--- | :--- | :--- | :--- |
-| **2510011013** | **Adamya Rawat** | **Team Lead & System Architect** | Core pipeline architecture, module interface contracts, edge ML risk scoring, and coordination. |
-| **2510381135** | **Atiksh Sharma** | **Core Backend Engineer** | Low-level C zero-allocation buffers, FIFO alert queue, and Binary Max-Heap priority engine. |
-| **2510385597** | **Agamya Saini** | **QA & Validation Engineer** | Test vector generation, fault-injection testbeds, logging validation, and problem analysis[cite: 1]. |
-| **2510370197** | **Krishna Sehgal** | **Research & Documentation**[cite: 1] | CCSDS CDM dataset preprocessing, literature study, safety compliance, and documentation. |
-
-* **Faculty Mentor:** Dr. Narayan Chaturvedi 
-* **Group ID:** DSCPP-III-2026-T018
-
----
-
-## 3. Key Features
-* **Deterministic, Zero-Allocation Flight Memory:** Eliminates dynamic heap allocation (`malloc`/`free`) after initialization to completely avoid memory fragmentation and runtime crashes on flight computers[cite: 1].
-* **Explainable Edge ML Risk Scoring:** Evaluates miss distance ($d_{\text{miss}}$), relative velocity ($v_{\text{rel}}$), time to closest approach ($t_{\text{TCA}}$), and positional covariance matrix uncertainty ($\sigma$) locally without ground station latency[cite: 1].
-* **Priority Queue Ingestion:** Guarantees critical threats are immediately exposed at root in $\mathcal{O}(1)$ time using a Binary Max-Heap[cite: 1].
-* **Polymorphic Thruster Arbitration:** Abstract C++ base class (`ThrusterEngine`) arbitrating Chemical, Ion, and Cold-Gas engines based on Tsiolkovsky's Rocket Equation and automatic fallback execution[cite: 1].
-* **Dual-State Persistence:** In-memory LIFO stack for instantaneous abort/undo recovery alongside an in-memory Doubly Linked List for full bidirectional chronological mission tracking[cite: 1].
-
----
-
-## 4. System Architecture & Data Flow
+Schema, enforced exactly by the loader:
 
 ```
-+-------------------------------------------------------------------------------+
-|                             DATA INGESTION (C11)                              |
-|   +--------------------------+          +---------------------------------+   |
-|   | Space-Track CDMs / State | -------> | Static Circular Ring Buffer     |   |
-|   | Telemetry (Fixed Struct) |          | (Zero-Heap Ingestion Queue)     |   |
-|   +--------------------------+          +---------------------------------+   |
-+---------------------------------------------------|---------------------------+
-                                                    v
-+-------------------------------------------------------------------------------+
-|                          CORE LOGIC & SCORING LAYER                           |
-|   +---------------------------------------+     +-------------------------+   |
-|   | In-Place Logistic Regression Model    | --> | Binary Max-Heap         |   |
-|   | Inputs: d_miss, v_rel, t_TCA, sigma   |     | Root: Highest Threat    |   |
-|   | Output: Threat Score P in [0.0, 1.0]  |     | O(1) Peek, O(log n) Ins |   |
-|   +---------------------------------------+     +-------------------------+   |
-+---------------------------------------------------|---------------------------+
-                                                    v
-+-------------------------------------------------------------------------------+
-|                       PROPULSION DISPATCHER (C++17 OOP)                       |
-|                 +-------------------------------------------+                 |
-|                 |       Base Class: ThrusterEngine          |                 |
-|                 +-------------------------------------------+                 |
-|                        /              |              \                        |
-|                       v               v               v                       |
-|              +-------------+   +-------------+   +-------------+              |
-|              |  Chemical   |   |     Ion     |   |  Cold-Gas   |              |
-|              | (High Thrust|   | (High Isp / |   |  (Micro RCS |              |
-|              |  Fast Burn) |   |  Low Thrust)|   |   Pulsing)  |              |
-|              +-------------+   +-------------+   +-------------+              |
-|                       |               |               |                       |
-|                       +-------+-------+---------------+                       |
-|                               v                                               |
-|               Tsiolkovsky Delta-V & Time Check                                |
-|             [Automatic Fallback on Feasibility Fail]                          |
-+---------------------------------------|---------------------------------------+
-                                        v
-+-------------------------------------------------------------------------------+
-|                         PERSISTENCE & AUDIT LAYER                             |
-|    +-------------------+    +--------------------+    +--------------------+  |
-|    | LIFO State Stack  |    | Doubly Linked List |    | Append-Only Log    |  |
-|    | (Abort Rollbacks) |    | (Mission Timeline) |    | (flight_audit.log) |  |
-|    +-------------------+    +--------------------+    +--------------------+  |
-+-------------------------------------------------------------------------------+
+alert_id,miss_distance_m,relative_speed_km_s,time_to_tca_sec,cov_trace_m2,collision_prob
 ```
 
+* `cov_trace_m2` is the trace of the combined target and chaser RTN position covariance,
+  the sum of the six squared sigmas. An empty field is legal. Six ESA rows have one.
+* `collision_prob` is the provider's Pc, computed as 10^risk. It is used **only** as the label for offline
+  evaluation and never as a model input, to avoid target leakage.
+* The ESA data is LEO only, and every CDM in the test set is at least two days before TCA.
+  The MEO and GEO files exist to exercise those code paths. They must not be used to report accuracy.
 
-## 5. Technology Stack & Engineering Rationale
-
-| Layer | Component / Tech | Rationale & Trade-offs |
-| :--- | :--- | :--- |
-| **Ingestion** | Pure C (C11)[cite: 1] | Microsecond-level determinism; completely bypasses memory leaks and fragmentation[cite: 1]. |
-| **Hardware Abstraction** | C++17[cite: 1] | Object-Oriented Polymorphism cleanly models swappable thruster engines without runtime overhead[cite: 1]. |
-| **Threat Prioritization** | Custom Binary Max-Heap[cite: 1] | Eliminates $\mathcal{O}(n \log n)$ array sorting stalls during alert bursts; provides instant $\mathcal{O}(1)$ top-threat peek[cite: 1]. |
-| **Persistence** | In-Memory Structs[cite: 1] | Replaces heavy relational SQL databases to eliminate daemon overhead, disk latency, and IPC socket delays[cite: 1]. |
-| **Build & Standards** | GCC & CMake[cite: 1] | Strict compilation (`-Wall -Wextra -Werror -pedantic`) and automated cross-compilation for embedded ARM targets[cite: 1]. |
-
-
-## 6. Directory Structure
-```
-ocas-orbit-guard/
-├── CMakeLists.txt              # Production root CMake configuration
-├── run_ocas.sh                 # End-to-end execution script
-├── include/
-│   ├── c_ingestion.h           # Ring buffer, structs, FIFO definitions
-│   ├── risk_engine.h           # Logistic Regression & Max-Heap prototypes
-│   ├── thruster_engine.hpp     # Abstract ThrusterEngine & derived classes
-│   └── persistence.hpp         # LIFO stack & Doubly Linked List headers
-├── src/
-│   ├── c_ingestion/
-│   │   ├── ring_buffer.c       # Zero-allocation circular queue logic
-│   │   └── telemetry_parser.c  # CCSDS CDM packet parsing
-│   ├── cpp_engine/
-│   │   ├── risk_classifier.cpp # Edge ML scoring logic
-│   │   ├── max_heap.cpp        # Binary priority queue implementation
-│   │   ├── thruster_impl.cpp   # Chemical, Ion, Cold-Gas controllers
-│   │   └── persistence.cpp     # Stack rollback & timeline traversal
-│   ├── main.cpp                # System pipeline orchestrator
-│   └── visualizer/
-│       ├── index.html          # Real-time WebGL / Three.js 3D dashboard
-│       ├── app.js              # Telemetry WebSocket listener & orbit rendering
-│       └── styles.css          # Mission control UI styling
-└── data/
-    └── test_cdm_vectors.json   # Simulated benchmark conjunction scenarios
-```
-## 7. Build, Compilation & Execution
-
-### Prerequisites
-* **Compiler:** GCC/G++ 11+ with support for C11 and C++17 standards.
-* **Build System:** CMake (v3.16 or higher).
-* **Environment:** POSIX/Linux (Ubuntu 22.04 LTS / Debian) or macOS with standard POSIX toolchains.
-* **Optional:** Python 3.9+ with `scikit-learn` and `numpy` (for offline logistic regression coefficient training).
-
-### Step-by-Step Build Instructions
+To regenerate the compact file from the raw ESA download (`test_data.csv`):
 
 ```bash
-# 1. Clone the project repository
-git clone [https://github.com/Divyaj_vanguard/Orbital-Collision-Avoidance-System.git](https://github.com/Divyaj_vanguard/Orbital-Collision-Avoidance-System.git)
-cd OCAS-Orbital-Collision-Avoidance-System
-
-# 2. Create and enter an isolated build directory
-mkdir -p build && cd build
-
-# 3. Configure the CMake target with strict aerospace compiler flags
-# (-Wall -Wextra -Werror treats all warnings as fatal errors to enforce safety)
-cmake -DCMAKE_BUILD_TYPE=Release ..
-
-# 4. Compile the binaries
-make -j$(nproc)
-
-# Option A: Run the compiled binary directly with test vectors
-./bin/ocas_core ../data/benchmark_cdm_scenarios.json
-
-# Option B: Run the automated simulation script (launches telemetry engine & UI)
-cd ..
-chmod +x run_ocas.sh
-./run_ocas.sh
+build/bin/compact_cdm_dataset test_data.csv data/cleaned_cdm_dataset.csv
 ```
-## 8. Development Roadmap & Milestones
-
-* [x] **Phase-I: System Design & Static Ingestion (Completed - Current Evaluation)**
-  * Requirement analysis modeling orbital conjunctions and timing constraints.
-  * Preprocessed benchmark LEO conjunction telemetry from Space-Track and CelesTrak.
-  * Static, zero-heap circular buffer and FIFO queue specification in C.
-  * End-to-end prototype pipeline verified on terminal.
-    
-* [ ] **Phase-II: Core Engine & ML Integration (Upcoming)**
-  * In-place Logistic Regression model integration with pre-trained coefficients.
-  * Complete implementation of Binary Max-Heap risk ranking engine.
-  * Polymorphic `ThrusterEngine` dispatcher with automated fallback arbitration.
-  * LIFO rollback stack and doubly linked list history ledger integration.
-    
-* [ ] **Phase-III: Validation, Benchmarking & Visualizer (Final Delivery)**
-  * Fault-injection suite (simulating telemetry queue saturation and mid-burn thruster dropouts).
-  * Valgrind and AddressSanitizer audit to verify zero dynamic heap leaks.
-  * Benchmarking decision latency to achieve sub-millisecond execution.
-  * Interactive WebGL / 3D orbital trajectory dashboard integration.
 
 ---
 
-## 9. Evaluation Metrics & Verification Targets
+## 4. Models and physics
 
-| Metric | Target Specification | Validation Method |
-| :--- | :--- | :--- |
-| **High-Risk Prioritization Rate** | $\ge 90\%$ critical threats prioritized | Scored against CelesTrak historical collision near-misses. |
-| **Ingestion Heap Allocation** | Exactly **0 bytes** post-boot | Memory profiling via Valgrind Massif tool. |
-| **Decision Latency** | $\le 1.0\text{ ms}$ from alert ingest to burn vector | High-resolution CPU cycle benchmarking (`clock_gettime`). |
-| **Thruster Fallback Reliability** | $100\%$ safe recovery during thruster failure | Automated fault-injection suite during burn dispatch. |
-| **Rollback Integrity** | O(1) instant state restoration | LIFO stack pop verification upon maneuver abort flag. |
+### 4.1 LSTM model (in-domain)
+
+The LSTM runs in the same C++ as the flight loop, with no ML runtime. It is trained by
+`tools/ml/train_lstm` and loaded from a plain-text weight file at init.
+Its inputs are miss distance, relative speed, time to TCA and covariance trace (log-scaled), standardised with the training-split mean and standard deviation.
+It does not use Pc as an input.
+
+| | LSTM |
+| :-- | :-- |
+| Shape | 4 → LSTM(16) → 1 |
+| Task | per event: will the **final** CDM have log10 Pc ≥ −6? (ESA challenge definition) |
+| Input | the event's CDM history so far, keyed by `alert_id` |
+| Split | by event, 70 / 15 / 15, seed 2026, using only CDMs ≥ 2 days before TCA |
+| Threshold | F1-optimal on validation, never on test |
+| Cost | O(1) per CDM, with a fixed 2,048-event state table. A full probe window evicts its least recently updated event, and evictions are counted |
+
+Splitting by event matters. CDMs of one event are near-duplicates, so a per-CDM random split would leak test
+events into training. Training is deterministic: rerunning the trainer reproduces the committed weights.
+
+The LSTM does not decompose into per-feature contributions, so the audit log records the standardised inputs
+and the logit. It sits behind envelope checks and the conservative fallback. Its weights have no compiled-in
+default: if `data/models/lstm_weights.txt` fails to load, OCAS refuses to start.
+
+### 4.2 Conservative fallback
+
+`RiskClassifier` uses the fallback whenever the in-domain model is outside its training envelope:
+
+| Reason | Condition |
+| :-- | :-- |
+| `COV_MISSING` | covariance empty, non-finite or not positive |
+| `COV_IMPLAUSIBLE` | sqrt(trace) above 1,000 km. 668 ESA rows qualify, with traces up to 2.4e16 m² |
+| `VEL_OUT_OF_ENVELOPE` | v_rel outside 0 to 17.5 km/s |
+| `REGIME_OUT_OF_DOMAIN` | host is not in LEO. The model never saw MEO or GEO data |
+
+The fallback has three rules:
+
+* **Usable covariance:** it acts if the isotropic estimate Pc ≈ R²/(2σ²)·exp(−d²/2σ²) is at least 1e-4.
+  It uses R = 20 m and σ² = trace/3.
+* **Close pass:** it always acts if d < 1 km.
+* **Unusable covariance:** it screens on geometry alone and acts if d < 5 km. A diluted covariance drives
+  Pc toward zero exactly when knowledge is worst, so geometry is the safer signal.
+
+### 4.4 Regime strategies and evasion sizing
+
+The factory maps altitude to a regime. LEO is below 2,000 km. GEO starts at 35,586 km, the lower
+edge of the IADC 35,786 ± 200 km protected band. MEO lies between them. Each regime sizes the impulse with
+the Clohessy-Wiltshire (CW) solution for an impulse Δv applied a lead time L before TCA:
+
+| Regime | Plane, direction | Displacement gain G(L) | Preferred lead | Δv cap |
+| :-- | :-- | :-- | :-- | :-- |
+| LEO | along-track, +T | \|4 sin(nL)/n − 3L\| | 8 orbits | 1.0 m/s |
+| MEO | radial, +R | √(sin²(nL) + 4(1 − cos nL)²) / n | ½ orbit | 0.5 m/s |
+| GEO | cross-track, +N | \|sin(nL)\| / n | ¼ orbit | 0.5 m/s |
+
+The target separation is the largest of the regime floor (1, 3 or 5 km), 2σ per axis, and 1.5 times
+the current miss distance. The required offset is √(target² − d²). This assumes the offset is
+orthogonal to the unknown miss vector, which is the conservative choice. Then Δv = offset / G(L).
+An advisory over the Δv cap, or over the remaining Δv budget, is rejected and escalated to ground
+instead of being staged.
+
+Regime risk is a proximity term times a time-pressure term. LEO adds a kinetic-severity factor and
+GEO adds a slow-encounter dwell factor. These weights are engineering heuristics, not trained values.
+
+### 4.5 Advisory lifecycle
+
+Each staged advisory is preceded by a memento checkpoint and reserves Δv from the budget. The OEM
+FCU acknowledgement is simulated with `--abort-every N`. An external abort of advisory *k* unwinds
+the LIFO stack to *k*'s checkpoint, which also undoes every advisory staged after *k*, because those
+were sized against a state that included *k*. Everything else is committed. Each event lands in the
+mission ledger and the audit log.
 
 ---
 
-## 10. References & Standards
+## 5. Build and run
 
-1. **CCSDS 508.0-B-1:** *Conjunction Data Message (CDM)* Blue Book Recommended Standard, Consultative Committee for Space Data Systems.
-2. **MISRA C:2012:** *Guidelines for the use of the C language in critical systems* (Rules 11.4, 21.3 regarding dynamic allocation).
-3. **ISO/IEC 14882:2017:** *Standard for Programming Language C++ (C++17)*.
-4. **CelesTrak & Space-Track Archives:** *Public Conjunction Assessment and Two-Line Element (TLE) Data Sets*.
-5. **Tsiolkovsky, K. E.:** *The Exploration of Cosmic Space by Means of Reaction Devices* (Ideal Rocket Equation formulation for propulsion arbitration).
+Prerequisites: a C++17 compiler (GCC ≥ 9 or Clang ≥ 10), CMake ≥ 3.16, and Ninja or Make.
 
->>>>>>> e49fb1a59fde1e04fee2ebc7a240a2933630578f
+```bash
+./run_ocas.sh                 # build, test, evaluate, run LEO / GEO / MEO / stress scenarios
+```
+
+Manual steps:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+build/bin/test_ocas
+build/bin/ocas_flight_exec --evaluate
+build/bin/ocas_flight_exec --altitude-km 550 --quiet
+build/bin/ocas_flight_exec --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
+build/bin/ocas_flight_exec --help
+```
+
+Ground tools (trainers, dataset converters) need `-DOCAS_BUILD_TOOLS=ON`:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOCAS_BUILD_TOOLS=ON && cmake --build build
+build/bin/train_lstm           # needs the raw ESA train_data.csv in the repo root
+tools/datasets/fetch_public_data.sh
+```
+
+All targets compile with `-std=c++17 -Wall -Wextra -Werror -pedantic -O3`.
+
+### 5.1 Threat console with Python models (PyBind11)
+
+`AutonomousOrbitalCollisionSystem/cpp/` is the interactive threat front end. Threats go from a FIFO queue to a
+circular queue, and then through PyBind11 to `predict.predict_risk(miss, velocity, TCA, covariance)` in Python.
+The model returns *Nominal*, *Caution*, *High* or *Critical*, which becomes priority 1 to 4 in a priority queue.
+Two Python models provide that function:
+
+| Model | Files | Notes |
+| :-- | :-- | :-- |
+| Random Forest (scikit-learn, 200 trees) | `AutonomousOrbitalCollisionSystem/ml/predict.py` + `model.pkl` | `model.pkl` (110 MB) is not in git; get it from the team and place it next to `predict.py` |
+| LSTM (PyTorch) | `ml/predict.py`, `ml/models/lstm_risk.pt` | Trained by `ml/train_lstm.py`; also accepts the alert ID to use the event's history |
+
+The console imports whichever `predict.py` comes first on its Python path. Its `main.cpp` currently sets
+Windows paths; edit them for your machine. The LSTM levels are defined on the provider Pc:
+
+| Level | Pc |
+| :-- | :-- |
+| Nominal | < 1e-6 |
+| Caution | 1e-6 to < 1e-5 |
+| High | 1e-5 to < 1e-4 |
+| Critical | ≥ 1e-4 |
+
+Pc is the label only, never an input.
+
+```bash
+uv venv .venv_lstm --python 3.11
+uv pip install --python .venv_lstm/bin/python -r ml/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+.venv_lstm/bin/python ml/train_lstm.py     # ~30 s; needs train_data.csv and test_data.csv in the repo root
+cmake -S . -B build -DOCAS_BUILD_PYBIND=ON -DPython_EXECUTABLE=$PWD/.venv_lstm/bin/python
+cmake --build build
+build/bin/threat_console
+```
+
+Training is deterministic (seed 2026): rerunning it reproduces `ml/models/lstm_risk.pt` byte for byte. The
+metrics are written to `results/python_lstm_metrics.txt`.
+
+---
+
+## 6. Results
+
+These figures were measured on an AMD Ryzen 3 3250U with GCC 16.2 at `-O3`. Latency varies between runs.
+
+**Offline evaluation.** The label is collision_prob > 1e-4, scored per CDM. There are 24,484 CDMs and 233 positives.
+
+| Classifier | Precision | Recall | F1 |
+| :-- | --: | --: | --: |
+| Baseline: miss distance < 1 km | 0.066 | 0.609 | 0.120 |
+| LSTM (trained for a different label, see below) | 0.053 | 0.408 | 0.094 |
+| Conservative threshold | 0.063 | 0.609 | 0.114 |
+| OCAS hybrid (LSTM + fallback) | 0.051 | 0.408 | 0.091 |
+
+The LSTM catches 95 of 233 high-Pc CDMs (recall 0.408), while the 1 km baseline catches 142. This per-CDM label
+is not the LSTM's training target, so the table understates it. See its own evaluation below.
+
+The LSTM is scored on its own task by `train_lstm`. On 1,710 held-out events (49 high-risk), it uses each event's
+history up to 2 days before TCA:
+
+| Forecast of final-CDM risk | AP | Precision | Recall | F1 |
+| :-- | --: | --: | --: | --: |
+| Baseline: last miss distance < 1 km | 0.060 | 0.083 | 0.204 | 0.118 |
+| LSTM over CDM history | 0.111 | 0.101 | 0.143 | 0.119 |
+| Reference: latest log10 Pc ≥ −6 (**uses provider Pc**) | 0.479 | 0.500 | 0.898 | 0.642 |
+
+The LSTM has the best AP of the models that do not see Pc, but its F1 matches the baseline. It is far below the
+latest-Pc reference. The ESA challenge results (Uriot et al., 2022) found the same: the latest risk value is a
+very strong predictor. OCAS keeps Pc out of its inputs on purpose, so that it can act when Pc is missing or degraded.
+
+**Pipeline, full ESA stream, LEO host** (766 cycles, 24,484 CDMs, 10 m/s budget):
+
+| In-domain model | Actionable CDMs | Directives | Committed | Rejected: Δv cap / budget | Duplicates suppressed | Score + heap insert, mean / p99 | Full cycle, p50 / p99 |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| LSTM | 1,867 | 394 | 76 | 13 / 305 | 1,473 | 2.3–3.3 / 3.5–7.8 µs | 82 / 180 µs |
+
+* Model routing: 23,810 CDMs used the LSTM and 674 used the fallback.
+* With the LSTM, the budget runs out before the stream ends, so later threats are escalated
+  rather than handled on board. Higher recall has a direct Δv cost. See limitation 4.
+* Memory: zero `operator new` calls inside the loop. The fixed pipeline footprint is 875 KB, and the LSTM
+  event-state table accounts for most of it.
+* Latency ranges come from repeated runs. Full-cycle figures include audit-log flushes. Full-cycle p99 stays
+  at or below 0.2 ms, and the worst single cycle seen was 0.8 ms, far inside any realistic CDM update rate.
+
+---
+
+## 7. Limitations and next steps
+
+1. **Classifier recall.** The LSTM raises recall over a per-CDM linear model but its F1 only matches the 1 km
+   baseline, so model capacity is not the bottleneck. The four inputs are. Promising directions are features
+   the six-field schema drops (the individual covariance terms, RTN miss components), or a recall-targeted
+   threshold chosen on validation data.
+2. **Per-event evaluation.** The ESA challenge scores the *final* CDM of each event. Only `train_lstm` evaluates
+   per event. The flight executable's `--evaluate` still scores per CDM.
+3. **Physics scope.** CW assumes a circular orbit. J2, drag and third-body effects are not modeled.
+   Burn sign is fixed positive because the six-field schema has no RTN miss components.
+   The FCU must confirm direction against its own ephemeris.
+4. **Single-host simulation.** The ESA events come from many different missions. Streaming them
+   through one simulated spacecraft makes the Δv budget figures illustrative only. The higher-recall LSTM
+   exhausts the budget in this setting, so the recall-versus-Δv trade-off is real, but its size is not.
+5. **Duplicate handling.** A newer CDM for an already-advised event is suppressed rather than used to re-plan the advisory.
+6. **Allocation check.** The check counts C++ `operator new` only. It does not see direct `malloc` calls inside the C library.
+
+---
+
+## 8. Repository layout
+
+```
+include/{core,ingestion,risk,priority,regime,persistence,pipeline,telemetry}/   headers
+src/{core,risk,priority,regime,persistence,pipeline,telemetry}/, src/main.cpp   implementation
+tests/test_ocas.cpp                                                            verification suite
+include/ml/, src/ml/                                                           LSTM inference, weight I/O
+AutonomousOrbitalCollisionSystem/cpp/, /ml/                                     threat console + Random Forest (PyBind11)
+ml/               Python LSTM: train_lstm.py, predict.py (called from C++), models/, requirements.txt
+tools/            clean_esa_dataset, compact_cdm_dataset, generate_synthetic_vectors
+tools/ml/         train_lstm
+tools/datasets/   fetch_public_data.sh, convert_socrates, convert_ccsds_cdm
+data/             datasets                           data/models/    LSTM weights
+data/external/    public raw data, derived CSVs, fetch manifest
+logs/             runtime audit log (git-ignored)
+```
+
+---
+
+## 9. References
+
+1. CCSDS 508.0-B-1, *Conjunction Data Message*, Consultative Committee for Space Data Systems.
+2. T. Uriot et al., "Spacecraft collision avoidance challenge: Design and results of a machine learning
+   competition," *Astrodynamics*, 6, 121–140 (2022). This is the source of the ESA Kelvins dataset.
+3. W. H. Clohessy and R. S. Wiltshire, "Terminal Guidance System for Satellite Rendezvous,"
+   *Journal of the Aerospace Sciences*, 27(9), 653–658 (1960).
+4. IADC Space Debris Mitigation Guidelines, Inter-Agency Space Debris Coordination Committee. This defines the GEO protected region.
+5. ISO/IEC 14882:2017, *Programming Language C++*.

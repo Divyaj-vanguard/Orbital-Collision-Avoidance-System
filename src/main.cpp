@@ -27,8 +27,8 @@ namespace {
 
 struct CliOptions {
     std::string input = "data/cleaned_cdm_dataset.csv";
-    std::string weights = "data/trained_weights.txt";
     std::string log = "logs/flight_audit.log";
+    std::string lstm_weights = "data/models/lstm_weights.txt";
     double altitude_km = 550.0;
     double dv_budget_mps = 10.0;
     std::size_t batch = 32;
@@ -52,7 +52,7 @@ void usage(const char* argv0) {
         "  --max-advisories N    directives per cycle, 1..16   [8]\n"
         "  --abort-every N       simulate OEM abort of every Nth staged advisory [0 = off]\n"
         "  --dv-budget X         collision-avoidance dv budget [10 m/s]\n"
-        "  --weights PATH        logistic weights file         [data/trained_weights.txt]\n"
+        "  --lstm-weights PATH   LSTM weights file             [data/models/lstm_weights.txt]\n"
         "  --log PATH            append-only audit log         [logs/flight_audit.log]\n"
         "  --log-all-threats     audit every scored CDM, not only actionable ones\n"
         "  --summary-every N     cycle summary period, 0 = off [100]\n"
@@ -92,7 +92,7 @@ bool parse_cli(int argc, char** argv, CliOptions& o) {
         else if (a == "--evaluate") o.evaluate = true;
         else if (a == "--log-all-threats") o.log_all_threats = true;
         else if (a == "--input" && need(v)) o.input = v;
-        else if (a == "--weights" && need(v)) o.weights = v;
+        else if (a == "--lstm-weights" && need(v)) o.lstm_weights = v;
         else if (a == "--log" && need(v)) o.log = v;
         else if (a == "--altitude-km" && need(v) && parse_number(v, o.altitude_km)) {}
         else if (a == "--dv-budget" && need(v) && parse_number(v, o.dv_budget_mps)) {}
@@ -122,6 +122,11 @@ struct Confusion {
     }
     [[nodiscard]] double precision() const { return tp + fp == 0 ? 0.0 : double(tp) / double(tp + fp); }
     [[nodiscard]] double recall() const { return tp + fn == 0 ? 0.0 : double(tp) / double(tp + fn); }
+    [[nodiscard]] double specificity() const { return tn + fp == 0 ? 0.0 : double(tn) / double(tn + fp); }
+    [[nodiscard]] double accuracy() const {
+        const std::size_t n = tp + fp + tn + fn;
+        return n == 0 ? 0.0 : double(tp + tn) / double(n);
+    }
     [[nodiscard]] double f1() const {
         const double p = precision(), r = recall();
         return p + r == 0.0 ? 0.0 : 2.0 * p * r / (p + r);
@@ -131,7 +136,7 @@ struct Confusion {
 int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const ocas::RiskClassifier& clf,
                    const ocas::Ansi& a) {
     constexpr double kLabelPc = 1.0e-4;  // same label definition as tools/clean_esa_dataset.cpp
-    Confusion logistic, conservative, hybrid, baseline;
+    Confusion lstm, conservative, hybrid, baseline;
     std::size_t by_sel[5] = {0, 0, 0, 0, 0};
     std::size_t positives = 0;
     for (const auto& t : rows) {
@@ -140,9 +145,12 @@ int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const oc
         positives += label ? 1 : 0;
         const ocas::ModelSelection sel = clf.select(t);
         ++by_sel[static_cast<int>(sel)];
-        logistic.add(clf.logistic().assess(t).actionable, label);
-        conservative.add(clf.conservative().assess(t).actionable, label);
-        hybrid.add(clf.assess(t).actionable, label);
+        // Each strategy is evaluated exactly once per row: the LSTM is stateful.
+        const bool p_lstm = clf.lstm().assess(t).actionable;
+        const bool p_con = clf.conservative().assess(t).actionable;
+        lstm.add(p_lstm, label);
+        conservative.add(p_con, label);
+        hybrid.add(sel == ocas::ModelSelection::InDomain ? p_lstm : p_con, label);
         baseline.add(t.miss_distance_m < 1000.0, label);
     }
     std::printf("%s%sOFFLINE EVALUATION%s  label: collision_prob > 1e-4 (per CDM, %zu rows, %zu positive)\n",
@@ -150,18 +158,24 @@ int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const oc
     std::printf("  model selection: in-domain %zu | cov missing %zu | cov implausible %zu | vel out %zu | "
                 "regime out %zu\n\n",
                 by_sel[0], by_sel[1], by_sel[2], by_sel[3], by_sel[4]);
-    std::printf("  %-34s %6s %6s %6s %7s  %9s %7s %6s\n", "classifier", "TP", "FP", "FN", "TN", "precision",
-                "recall", "F1");
+    std::printf("  %-38s %5s %5s %5s %6s  %8s %11s %11s %9s %6s\n", "classifier", "TP", "FP", "FN", "TN", "accuracy",
+                "sensitivity", "specificity", "precision", "F1");
     auto row = [](const char* name, const Confusion& c) {
-        std::printf("  %-34s %6zu %6zu %6zu %7zu  %9.3f %7.3f %6.3f\n", name, c.tp, c.fp, c.fn, c.tn, c.precision(),
-                    c.recall(), c.f1());
+        std::printf("  %-38s %5zu %5zu %5zu %6zu  %8.3f %11.3f %11.3f %9.3f %6.3f\n", name, c.tp, c.fp, c.fn, c.tn,
+                    c.accuracy(), c.recall(), c.specificity(), c.precision(), c.f1());
     };
     row("baseline: miss distance < 1 km", baseline);
-    row("logistic regression (all rows)", logistic);
+    row("LSTM, final-risk forecast (all rows)", lstm);
     row("conservative threshold (all rows)", conservative);
-    row("OCAS hybrid (logistic + fallback)", hybrid);
-    std::printf("\n  Note: the conservative rule's Pc estimate is physics-derived, but the label is the provider's\n"
-                "  Pc, so agreement partly reflects shared physics rather than learned skill.\n");
+    char name[64];
+    std::snprintf(name, sizeof name, "OCAS hybrid (%s + fallback)", ocas::to_string(clf.primary().id()));
+    row(name, hybrid);
+    std::printf("\n  sensitivity = recall = TP/(TP+FN): share of real threats caught. specificity = TN/(TN+FP).\n"
+                "  Accuracy is dominated by the ~99%% negatives: a model that never acts scores %.3f.\n",
+                double(rows.size() - positives) / double(rows.size()));
+    std::printf("\n  Notes: the LSTM forecasts each event's FINAL risk, so this per-CDM label is not its training\n"
+                "  target; see tools/ml/train_lstm for its own held-out evaluation. The conservative rule's Pc\n"
+                "  estimate is physics-derived, so agreement with the provider Pc partly reflects shared physics.\n");
     return 0;
 }
 
@@ -181,7 +195,8 @@ void print_report(const ocas::OcasPipeline& p, const ocas::FlightAuditLogger& lo
                 a.bold, a.cyan, a.reset);
     std::printf("  cycles %llu | CDMs ingested %zu | rejected input %zu | scored %zu\n",
                 static_cast<unsigned long long>(t.cycle), t.ingested, t.rejected_input, t.scored);
-    std::printf("  risk model: logistic %zu | conservative fallback %zu | actionable CDMs %zu\n", t.logistic_used,
+    std::printf("  risk model: %s %zu | conservative fallback %zu | actionable CDMs %zu\n",
+                ocas::to_string(p.classifier().primary().id()), t.model_used,
                 t.fallback_used, t.actionable);
     std::printf("  directives %zu: %scommitted %zu%s | %srolled back %zu%s | %srejected dv-cap %zu | rejected budget "
                 "%zu%s | duplicate updates suppressed %zu\n",
@@ -250,8 +265,10 @@ int main(int argc, char** argv) {
     // ---- init phase: allocation allowed ---------------------------------
     ocas::PipelineConfig cfg;
     std::string err;
-    if (!ocas::load_logistic_params(opt.weights, cfg.logistic, err)) {
-        std::fprintf(stderr, "warning: %s; using compiled-in weights\n", err.c_str());
+    // The LSTM has no compiled-in weights: an untrained network is not a model.
+    if (!ocas::ml::load_lstm(opt.lstm_weights, cfg.risk.lstm, err)) {
+        std::fprintf(stderr, "error: LSTM weights did not load: %s (train with tools/ml/train_lstm)\n", err.c_str());
+        return 1;
     }
     std::vector<ocas::ConjunctionTelemetry> rows;
     ocas::CdmLoadReport rep;
@@ -261,14 +278,13 @@ int main(int argc, char** argv) {
     }
     std::printf("[INIT] loaded %zu CDMs from %s (malformed %zu, missing covariance %zu)\n", rep.loaded,
                 opt.input.c_str(), rep.malformed, rep.missing_covariance);
-    std::printf("[INIT] weights: w0 %.4f wd %.4f wv %.4f wt %.4f wc %.4f | threshold %.2f\n", cfg.logistic.w_bias,
-                cfg.logistic.w_dist, cfg.logistic.w_vel, cfg.logistic.w_tca, cfg.logistic.w_cov,
-                cfg.logistic.decision_threshold);
+    std::printf("[INIT] LSTM loaded from %s | decision threshold %.4f\n", opt.lstm_weights.c_str(),
+                cfg.risk.lstm.threshold);
 
     if (opt.evaluate) {
         ocas::OrbitalRegime r{};
         const bool leo = ocas::RegimeFactory::classify(opt.altitude_km, r) && r == ocas::OrbitalRegime::LEO;
-        const ocas::RiskClassifier clf(cfg.logistic, cfg.conservative, leo);
+        static const ocas::RiskClassifier clf(cfg.risk, leo);  // ~0.6 MB LSTM state store: static
         const int rc = run_evaluation(rows, clf, a);
         std::fflush(stdout);
         return rc;

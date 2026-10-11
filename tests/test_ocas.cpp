@@ -3,6 +3,8 @@
 // Each TEST is a function; CHECK records failures and continues.
 // ============================================================================
 #include "core/cdm_io.hpp"
+#include "ml/neural.hpp"
+#include "ml/sequence_store.hpp"
 #include "ingestion/circular_buffer.hpp"
 #include "persistence/flight_audit_logger.hpp"
 #include "persistence/mission_ledger.hpp"
@@ -137,26 +139,6 @@ void test_max_heap() {
 }
 
 // --------------------------------------------------------------------------
-void test_logistic_strategy() {
-    LogisticModelParams p;
-    LogisticRegressionStrategy lr(p);
-    const auto t = cdm(1, 500.0, 10.0, 200000.0, 4256.0 * 4256.0);
-    const RiskAssessment a = lr.assess(t);
-    CHECK(a.model == RiskModel::LogisticRegression);
-    CHECK_NEAR(a.features[0], 1.0 - 500.0 / 1500.0, 1e-12);
-    CHECK_NEAR(a.features[1], 10.0 / 22.26, 1e-12);
-    CHECK_NEAR(a.features[2], std::exp(-200000.0 / 285689.0), 1e-12);
-    CHECK_NEAR(a.features[3], 0.5, 1e-12);
-    const double z = p.w_bias + a.contributions[0] + a.contributions[1] + a.contributions[2] + a.contributions[3];
-    CHECK_NEAR(a.logit, z, 1e-12);
-    CHECK_NEAR(a.score, 1.0 / (1.0 + std::exp(-z)), 1e-12);
-    CHECK(a.actionable == (a.score >= p.decision_threshold));
-    // Monotonic in miss distance (dominant positive weight)
-    CHECK(lr.assess(cdm(1, 10.0, 10.0, 200000.0, 1e6)).score > lr.assess(cdm(1, 30000.0, 10.0, 200000.0, 1e6)).score);
-    // Deterministic
-    CHECK(lr.assess(t).score == a.score);
-}
-
 void test_conservative_strategy() {
     ConservativeThresholdStrategy c;
     // Missing covariance -> geometry only, 5 km screen, continuous at boundary
@@ -177,9 +159,27 @@ void test_conservative_strategy() {
     CHECK(c.assess(cdm(1, 2000.0, 7.0, 1e5, 1e14)).rule == ConservativeRule::GeometricOnly);
 }
 
+// Hand-set LSTM whose output depends only on miss distance: one unit with
+// input and output gates open, forget gate shut, and g = tanh(-2 * x0), where
+// x0 = log10(d + 1) - 3. Score > 0.5 (actionable) exactly when d < ~1 km.
+ocas::ml::LstmParams miss_distance_lstm() {
+    using namespace ocas::ml;
+    LstmParams p{};
+    p.scaler.mean = {3.0, 0.0, 0.0, 0.0};
+    p.b[0] = 30.0;                     // input gate open
+    p.b[kLstmH] = -30.0;               // forget gate shut: no memory between steps
+    p.W[2 * kLstmH * kFeatures] = -2.0;  // candidate g from x0 only
+    p.b[3 * kLstmH] = 30.0;            // output gate open
+    p.w_out[0] = 4.0;
+    p.threshold = 0.5;
+    return p;
+}
+
 void test_risk_classifier_selection() {
-    RiskClassifier leo({}, {}, true);
-    RiskClassifier geo({}, {}, false);
+    RiskModelConfig rc{};
+    rc.lstm = miss_distance_lstm();
+    static RiskClassifier leo(rc, true);
+    static RiskClassifier geo(rc, false);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, 1e6)) == ModelSelection::InDomain);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, kNaN)) == ModelSelection::CovarianceMissing);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, 0.0)) == ModelSelection::CovarianceMissing);
@@ -188,7 +188,8 @@ void test_risk_classifier_selection() {
     CHECK(geo.select(cdm(1, 1000, 1, 2e5, 1e6)) == ModelSelection::RegimeOutOfDomain);
     const RiskAssessment a = leo.assess(cdm(1, 1000, 10, 2e5, kNaN));
     CHECK(a.model == RiskModel::ConservativeThreshold && a.selection == ModelSelection::CovarianceMissing);
-    CHECK(leo.assess(cdm(1, 1000, 10, 2e5, 1e6)).model == RiskModel::LogisticRegression);
+    CHECK(leo.assess(cdm(1, 1000, 10, 2e5, 1e6)).model == RiskModel::Lstm);
+    CHECK(leo.assess(cdm(2, 100, 10, 2e5, 1e6)).actionable && !leo.assess(cdm(3, 50000, 10, 2e5, 1e6)).actionable);
 }
 
 // --------------------------------------------------------------------------
@@ -394,6 +395,7 @@ void test_pipeline_integration() {
     PipelineConfig cfg;
     cfg.altitude_km = 550.0;
     cfg.dv_budget_mps = 1.0;
+    cfg.risk.lstm = miss_distance_lstm();
     std::string err;
 
     {
@@ -408,7 +410,7 @@ void test_pipeline_integration() {
         p.ingest(cdm(103, 300.0, 12.0, 250000.0, kNaN));                  // fallback path, actionable
         CycleStats c = p.run_cycle();
         CHECK(c.ingested == 4 && c.rejected_input == 1 && c.scored == 3);
-        CHECK(c.logistic_used == 2 && c.fallback_used == 1);
+        CHECK(c.model_used == 2 && c.fallback_used == 1);
         CHECK(c.directives == 2 && c.committed == 2 && c.rolled_back == 0);
         CHECK(obs.rejected == 1 && obs.advisories == 2 && obs.resolved == 2);
         CHECK(p.spacecraft().state().dv_budget_mps < 1.0);
@@ -454,14 +456,14 @@ void test_pipeline_integration() {
         CHECK(!p.initialize(bad, err));
     }
     {
-        // GEO host: logistic model is out of domain, everything uses the fallback
+        // GEO host: the LSTM is out of domain, everything uses the fallback
         static OcasPipeline p;
         PipelineConfig g = cfg;
         g.altitude_km = 35786.0;
         CHECK(p.initialize(g, err));
         p.ingest(cdm(300, 900.0, 0.6, 2 * 86400.0, 3.0 * 500.0 * 500.0));
         const CycleStats c = p.run_cycle();
-        CHECK(c.fallback_used == 1 && c.logistic_used == 0 && c.directives == 1);
+        CHECK(c.fallback_used == 1 && c.model_used == 0 && c.directives == 1);
         bool cross_track = false;
         p.ledger().traverse_forward([&](const LedgerRecord& r) { cross_track = r.directive.plane == ManeuverPlane::CrossTrack; });
         CHECK(cross_track);
@@ -494,6 +496,107 @@ void test_audit_logger() {
     std::filesystem::remove_all(path.parent_path());
 }
 
+// --------------------------------------------------------------------------
+void test_ml_inference() {
+    using namespace ocas::ml;
+    const Features raw = raw_features(cdm(1, 999.0, 7.5, 2 * 86400.0, 99.0 * 99.0));
+    CHECK_NEAR(raw[0], 3.0, 1e-12);
+    CHECK_NEAR(raw[1], 7.5, 1e-12);
+    CHECK_NEAR(raw[2], 2.0, 1e-12);
+    CHECK_NEAR(raw[3], 2.0, 1e-12);
+    FeatureScaler sc;
+    sc.mean = {1, 0, 0, 0};
+    sc.stddev = {2, 1, 1, 1};
+    CHECK_NEAR(standardize(raw, sc)[0], 1.0, 1e-12);
+
+    // LSTM with zero weights except g-gate bias atanh(0.5): i = f = o = 0.5, g = 0.5
+    LstmParams l{};
+    for (std::size_t j = 0; j < kLstmH; ++j) l.b[2 * kLstmH + j] = std::atanh(0.5);
+    l.w_out[0] = 1.0;
+    LstmState st{};
+    CHECK_NEAR(lstm_step(l, {0, 0, 0, 0}, st), 0.5 * std::tanh(0.25), 1e-12);   // c = 0.25
+    CHECK_NEAR(lstm_step(l, {0, 0, 0, 0}, st), 0.5 * std::tanh(0.375), 1e-12);  // c = 0.5*0.25 + 0.25
+}
+
+void test_sequence_store() {
+    using namespace ocas::ml;
+    static SequenceStateStore<16> store;
+    store.clear();
+    std::size_t steps = 0;
+    store.acquire(7, &steps).h[0] = 42.0;
+    CHECK(steps == 1);
+    CHECK(store.acquire(7, &steps).h[0] == 42.0 && steps == 2);  // same event keeps its state
+    CHECK(store.acquire(8).h[0] == 0.0);                        // new event starts from zero
+    for (std::uint32_t id = 100; id < 140; ++id) store.acquire(id);
+    CHECK(store.size() == 16 && store.evictions() == 42 - 16);
+}
+
+void test_model_io_and_ml_strategies() {
+    using namespace ocas::ml;
+    const auto dir = std::filesystem::temp_directory_path() / "ocas_test_ml";
+    std::filesystem::create_directories(dir);
+    const std::string lp = (dir / "lstm.txt").string(), bad = (dir / "other.txt").string();
+    std::ofstream(bad) << "arch some_other_model\n";
+    std::string err;
+    LstmParams l{};
+    l.U[5] = 1.0 / 3.0;
+    l.threshold = 0.7;
+    CHECK(save_lstm(lp, l, "t"));
+    LstmParams l2{};
+    CHECK(load_lstm(lp, l2, err) && l2.U == l.U && l2.threshold == 0.7);
+    CHECK(!load_lstm(bad, l2, err) && !err.empty());  // wrong architecture rejected
+    std::filesystem::remove_all(dir);
+
+    // LSTM strategy keeps independent state per event (weights chosen so the state evolves)
+    l.b[2 * kLstmH] = std::atanh(0.5);
+    l.w_out[0] = 1.0;
+    static LstmStrategy ls(l);
+    ls.reset();
+    const auto a1 = ls.assess(cdm(1, 500, 10, 3e5, 1e6));
+    const auto b1 = ls.assess(cdm(2, 500, 10, 3e5, 1e6));
+    const auto a2 = ls.assess(cdm(1, 500, 10, 3e5, 1e6));
+    CHECK(a1.model == RiskModel::Lstm && a1.score == b1.score && ls.tracked_events() == 2);
+    CHECK(a2.logit != a1.logit);  // second step of event 1 sees its own history
+
+    // Classifier routes in-domain CDMs to the configured primary, others to the fallback
+    RiskModelConfig cfg{};
+    cfg.lstm = l;
+    static RiskClassifier clf(cfg, true);
+    CHECK(clf.primary().id() == RiskModel::Lstm);
+    CHECK(clf.assess(cdm(1, 500, 10, 3e5, 1e6)).model == RiskModel::Lstm);
+    CHECK(clf.assess(cdm(1, 500, 10, 3e5, kNaN)).model == RiskModel::ConservativeThreshold);
+
+    // Shipped weight files load and have sane thresholds
+#ifdef OCAS_SOURCE_DIR
+    LstmParams sl{};
+    CHECK(load_lstm(std::string(OCAS_SOURCE_DIR) + "/data/models/lstm_weights.txt", sl, err));
+    CHECK(sl.threshold > 0.0 && sl.threshold < 1.0);
+#endif
+}
+
+void test_latency_profiler() {
+    LatencyProfiler p;
+    CHECK(p.percentile_ns(0.5) == 0);
+    for (int i = 0; i < 99; ++i) p.record(1'000);  // fine tier: 25 ns bins
+    p.record(5'000'000);
+    CHECK(p.percentile_ns(0.50) == 1'025 && p.max_ns() == 5'000'000);  // upper bin edge
+
+    // Most samples above 100 us: the median must not collapse onto max (it did
+    // before the coarse tier: a 130 us cycle reported p50 = p99 = max).
+    LatencyProfiler c;
+    for (int i = 0; i < 60; ++i) c.record(130'000);
+    for (int i = 0; i < 39; ++i) c.record(20'000);
+    c.record(777'107);
+    CHECK(c.percentile_ns(0.50) == 140'000);  // upper edge of the 10 us bin holding 130 us
+    CHECK(c.percentile_ns(0.99) == 140'000);
+    CHECK(c.percentile_ns(1.00) == 780'000);
+    CHECK(c.max_ns() == 777'107);
+
+    LatencyProfiler o;  // beyond the coarse tier: only max() is exact
+    o.record(50'000'000);
+    CHECK(o.percentile_ns(0.5) == 50'000'000);
+}
+
 }  // namespace
 
 int main() {
@@ -503,7 +606,6 @@ int main() {
     } const tests[] = {
         {"circular buffer", test_circular_buffer},
         {"max heap + threat comparator", test_max_heap},
-        {"logistic regression strategy", test_logistic_strategy},
         {"conservative threshold strategy", test_conservative_strategy},
         {"risk classifier selection", test_risk_classifier_selection},
         {"regime factory", test_regime_factory},
@@ -513,6 +615,10 @@ int main() {
         {"CDM CSV/JSON I/O", test_cdm_io},
         {"pipeline integration", test_pipeline_integration},
         {"audit logger", test_audit_logger},
+        {"ML features + LSTM forward pass", test_ml_inference},
+        {"LSTM per-event state store", test_sequence_store},
+        {"ML weight files + LSTM strategy", test_model_io_and_ml_strategies},
+        {"latency profiler percentiles", test_latency_profiler},
     };
     for (const auto& t : tests) {
         const int before = g_failures;
