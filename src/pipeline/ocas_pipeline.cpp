@@ -41,8 +41,8 @@ bool OcasPipeline::initialize(const PipelineConfig& cfg, std::string& error) {
         return false;
     }
     cfg_ = cfg;
-    // The logistic model was trained on ESA LEO data only.
-    classifier_.emplace(cfg.logistic, cfg.conservative, regime_->regime() == OrbitalRegime::LEO);
+    // The LSTM was trained on ESA LEO data only.
+    classifier_.emplace(cfg.risk, regime_->regime() == OrbitalRegime::LEO);
 
     SpacecraftState s{};
     s.altitude_km = cfg.altitude_km;
@@ -54,7 +54,8 @@ bool OcasPipeline::initialize(const PipelineConfig& cfg, std::string& error) {
     info.altitude_km = cfg.altitude_km;
     info.orbital_period_s = regime_->orbital_period_s();
     info.dv_budget_mps = cfg.dv_budget_mps;
-    info.decision_threshold = cfg.logistic.decision_threshold;
+    info.primary_model = RiskModel::Lstm;
+    info.decision_threshold = cfg.risk.lstm.threshold;
     info.abort_every_n = cfg.abort_every_n;
     info.input_label = cfg.input_label;
     observers_.notify([&](IPipelineObserver& o) { o.on_session_start(info); });
@@ -89,8 +90,8 @@ void OcasPipeline::score_buffered(CycleStats& stats) {
         cdm_latency_.record(elapsed_ns(start));
 
         ++stats.scored;
-        if (s.risk.model == RiskModel::LogisticRegression) {
-            ++stats.logistic_used;
+        if (s.risk.model != RiskModel::ConservativeThreshold) {
+            ++stats.model_used;
         } else {
             ++stats.fallback_used;
         }
@@ -214,7 +215,7 @@ void OcasPipeline::accumulate(const CycleStats& c) noexcept {
     totals_.rejected_input += c.rejected_input;
     totals_.scored += c.scored;
     totals_.actionable += c.actionable;
-    totals_.logistic_used += c.logistic_used;
+    totals_.model_used += c.model_used;
     totals_.fallback_used += c.fallback_used;
     totals_.directives += c.directives;
     totals_.committed += c.committed;

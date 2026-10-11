@@ -3,26 +3,19 @@
 // ============================================================================
 // Strategy pattern:
 //   IRiskStrategy                  abstract interface, one virtual assess()
-//   LogisticRegressionStrategy     trained 4-feature logistic model, O(1)
+//   LstmStrategy                   trained LSTM over each event's CDM history,
+//                                  forecasts the event's final risk, O(1) per CDM
 //   ConservativeThresholdStrategy  rule-based fallback, O(1)
-//   RiskClassifier                 context: picks a strategy per CDM and
-//                                  records *why* (ModelSelection)
-//
-// Feature engineering is identical to tools/train_lr_model.cpp:
-//   f_d     = 1 - d / (d + ref_dist)            closer       -> higher
-//   f_v     = v / (v + ref_vel)                 faster       -> higher
-//   f_t     = exp(-t / ref_tau)                 sooner       -> higher
-//   f_sigma = s / (s + ref_sigma), s = sqrt(Tr C)  more uncertain -> higher
-//   z = w0 + sum(w_i f_i),  score = sigmoid(z)
-//
-// The logistic model was trained with a 226x positive-class weight, so its
-// score is a ranking score, NOT a calibrated probability. The decision line
-// is the training-time F1-optimal threshold stored with the weights.
+//   RiskClassifier                 context: routes each CDM to the configured
+//                                  primary model or the fallback, and records
+//                                  *why* (ModelSelection)
 // ============================================================================
 #ifndef OCAS_RISK_RISK_STRATEGY_HPP
 #define OCAS_RISK_RISK_STRATEGY_HPP
 
 #include "core/types.hpp"
+#include "ml/neural.hpp"
+#include "ml/sequence_store.hpp"
 
 #include <string>
 
@@ -38,35 +31,6 @@ protected:
     IRiskStrategy() = default;
     IRiskStrategy(const IRiskStrategy&) = default;
     IRiskStrategy& operator=(const IRiskStrategy&) = default;
-};
-
-/// Weights and normalisation constants. Defaults equal data/trained_weights.txt.
-struct LogisticModelParams {
-    double w_bias = -0.1221970958;
-    double w_dist = 8.9519815856;
-    double w_vel = -2.1527299613;
-    double w_tca = -4.5139313277;
-    double w_cov = -0.3941279100;
-    double ref_dist_m = 1000.0;
-    double ref_vel_km_s = 12.26;
-    double ref_tau_s = 285689.0;
-    double ref_sigma_m = 4256.0;
-    double decision_threshold = 0.99;
-};
-
-/// Parse a weights file written by tools/train_lr_model. Init-time only.
-/// Unknown keys are ignored; missing keys keep their defaults.
-bool load_logistic_params(const std::string& path, LogisticModelParams& out, std::string& error);
-
-class LogisticRegressionStrategy final : public IRiskStrategy {
-public:
-    explicit LogisticRegressionStrategy(const LogisticModelParams& p = {}) noexcept : p_(p) {}
-    [[nodiscard]] RiskAssessment assess(const ConjunctionTelemetry& t) const noexcept override;
-    [[nodiscard]] RiskModel id() const noexcept override { return RiskModel::LogisticRegression; }
-    [[nodiscard]] const LogisticModelParams& params() const noexcept { return p_; }
-
-private:
-    LogisticModelParams p_;
 };
 
 struct ConservativeParams {
@@ -98,7 +62,34 @@ private:
     ConservativeParams p_;
 };
 
-/// Bounds of the logistic model's training data (ESA Kelvins, LEO only).
+/// Sequence model. Each call advances the LSTM state of that CDM's event
+/// (alert_id) and returns the forecast that the event's FINAL CDM will be
+/// high risk. Stateful: the per-event store is mutable, and CDMs of one event
+/// must arrive in time order (they do: CDM updates are issued in time order).
+class LstmStrategy final : public IRiskStrategy {
+public:
+    static constexpr std::size_t kEventCapacity = 2048;
+
+    explicit LstmStrategy(const ml::LstmParams& p) noexcept : p_(p) {}
+    [[nodiscard]] RiskAssessment assess(const ConjunctionTelemetry& t) const noexcept override;
+    [[nodiscard]] RiskModel id() const noexcept override { return RiskModel::Lstm; }
+    [[nodiscard]] const ml::LstmParams& params() const noexcept { return p_; }
+    [[nodiscard]] std::size_t tracked_events() const noexcept { return store_.size(); }
+    [[nodiscard]] std::uint64_t evictions() const noexcept { return store_.evictions(); }
+    void reset() noexcept { store_.clear(); }
+
+private:
+    ml::LstmParams p_;
+    mutable ml::SequenceStateStore<kEventCapacity> store_;
+};
+
+/// Everything the classifier needs to build its strategies.
+struct RiskModelConfig {
+    ml::LstmParams lstm{};
+    ConservativeParams conservative{};
+};
+
+/// Bounds of the LSTM's training data (ESA Kelvins, LEO only).
 struct ModelEnvelope {
     double min_speed_km_s = 0.0;
     double max_speed_km_s = 17.5;  ///< Training max was 17.14 km/s
@@ -108,19 +99,22 @@ struct ModelEnvelope {
 /// IRiskStrategy vtable after choosing one per CDM.
 class RiskClassifier {
 public:
-    RiskClassifier(const LogisticModelParams& lp, const ConservativeParams& cp, bool host_in_training_regime,
-                   const ModelEnvelope& env = {}) noexcept;
+    RiskClassifier(const RiskModelConfig& cfg, bool host_in_training_regime, const ModelEnvelope& env = {}) noexcept;
+    RiskClassifier(const RiskClassifier&) = delete;  // primary_ points into *this
+    RiskClassifier& operator=(const RiskClassifier&) = delete;
 
     [[nodiscard]] ModelSelection select(const ConjunctionTelemetry& t) const noexcept;
     [[nodiscard]] const IRiskStrategy& strategy_for(ModelSelection s) const noexcept;
     [[nodiscard]] RiskAssessment assess(const ConjunctionTelemetry& t) const noexcept;
 
-    [[nodiscard]] const LogisticRegressionStrategy& logistic() const noexcept { return logistic_; }
+    [[nodiscard]] const LstmStrategy& lstm() const noexcept { return lstm_; }
     [[nodiscard]] const ConservativeThresholdStrategy& conservative() const noexcept { return conservative_; }
+    [[nodiscard]] const IRiskStrategy& primary() const noexcept { return *primary_; }
 
 private:
-    LogisticRegressionStrategy logistic_;
+    LstmStrategy lstm_;
     ConservativeThresholdStrategy conservative_;
+    const IRiskStrategy* primary_;
     ModelEnvelope envelope_;
     bool host_in_training_regime_;
 };

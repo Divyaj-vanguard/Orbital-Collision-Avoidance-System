@@ -30,11 +30,11 @@ struct ConjunctionTelemetry {
 enum class OrbitalRegime : std::uint8_t { LEO, MEO, GEO };
 enum class ManeuverPlane : std::uint8_t { AlongTrack, Radial, CrossTrack };
 enum class Urgency : std::uint8_t { Routine, Priority, Immediate };
-enum class RiskModel : std::uint8_t { LogisticRegression, ConservativeThreshold };
+enum class RiskModel : std::uint8_t { ConservativeThreshold, Lstm };
 
 /// Why the risk classifier chose the model it used for a given CDM.
 enum class ModelSelection : std::uint8_t {
-    InDomain,               ///< Logistic model inside its training envelope
+    InDomain,               ///< LSTM inside its training envelope
     CovarianceMissing,      ///< cov_trace absent / non-finite / non-positive
     CovarianceImplausible,  ///< sigma_eff beyond physical plausibility (dilution region)
     VelocityOutOfEnvelope,  ///< v_rel outside the training data range
@@ -64,12 +64,11 @@ struct VectorRTN {
 struct RiskAssessment {
     double score = 0.0;                    ///< Strategy score in [0, 1]
     bool actionable = false;               ///< Score crossed the strategy decision line
-    RiskModel model = RiskModel::LogisticRegression;
+    RiskModel model = RiskModel::Lstm;
     ModelSelection selection = ModelSelection::InDomain;
     ConservativeRule rule = ConservativeRule::None;
-    std::array<double, 4> features{};      ///< Normalised f_d, f_v, f_t, f_sigma
-    std::array<double, 4> contributions{}; ///< w_i * f_i (logistic model only)
-    double logit = 0.0;                    ///< Logistic log-odds (logistic model only)
+    std::array<double, 4> features{};      ///< Model inputs after normalisation
+    double logit = 0.0;                    ///< Log-odds before the sigmoid (LSTM)
     double pc_estimate = 0.0;              ///< Isotropic Pc estimate (conservative model only)
 };
 
@@ -104,7 +103,7 @@ struct LedgerRecord {
     EvasionDirective directive{};
     double risk_score = 0.0;
     double priority = 0.0;
-    RiskModel model = RiskModel::LogisticRegression;
+    RiskModel model = RiskModel::Lstm;
     AdvisoryStatus status = AdvisoryStatus::Staged;
 };
 

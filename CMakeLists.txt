@@ -34,6 +34,7 @@ add_library(ocas_core STATIC
     src/persistence/flight_audit_logger.cpp
     src/pipeline/ocas_pipeline.cpp
     src/telemetry/terminal_telemetry.cpp
+    src/ml/model_io.cpp
 )
 target_include_directories(ocas_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_compile_options(ocas_core PUBLIC ${OCAS_FLAGS})
@@ -45,21 +46,51 @@ add_executable(ocas_flight_exec src/main.cpp src/core/alloc_tracker.cpp)
 target_link_libraries(ocas_flight_exec PRIVATE ocas_core)
 
 # ---- Verification suite -------------------------------------------------------
+# ---- PyBind11 threat console (optional) --------------------------------------
+# AutonomousOrbitalCollisionSystem/cpp/: Threat -> FIFO queue -> circular queue -> Python model (Random Forest or LSTM,
+# via PyBind11) -> risk level -> priority queue. Needs a Python environment
+# with torch, numpy and pybind11:
+#   cmake -S . -B build -DOCAS_BUILD_PYBIND=ON -DPython_EXECUTABLE=.venv_lstm/bin/python
+option(OCAS_BUILD_PYBIND "Build the PyBind11 threat console in AutonomousOrbitalCollisionSystem/cpp/" OFF)
+if(OCAS_BUILD_PYBIND)
+    set(PYBIND11_FINDPYTHON ON)
+    find_package(Python REQUIRED COMPONENTS Interpreter Development.Embed)
+    execute_process(COMMAND ${Python_EXECUTABLE} -m pybind11 --cmakedir
+                    OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+    execute_process(COMMAND ${Python_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+                    OUTPUT_VARIABLE OCAS_PY_SITE OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+    find_package(pybind11 CONFIG REQUIRED)
+    set(OCAS_CONSOLE_DIR AutonomousOrbitalCollisionSystem/cpp)
+    add_executable(threat_console ${OCAS_CONSOLE_DIR}/main.cpp ${OCAS_CONSOLE_DIR}/CircularQueue.cpp)
+    target_link_libraries(threat_console PRIVATE pybind11::embed)
+    target_compile_definitions(threat_console PRIVATE OCAS_ML_DIR="${CMAKE_SOURCE_DIR}/ml"
+                                                      OCAS_PY_SITE="${OCAS_PY_SITE}")
+    set_target_properties(threat_console PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+
 enable_testing()
 add_executable(test_ocas tests/test_ocas.cpp)
 target_link_libraries(test_ocas PRIVATE ocas_core)
+target_compile_definitions(test_ocas PRIVATE OCAS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME ocas_unit_tests COMMAND test_ocas)
 
 # ---- Offline ground tools (not flight software) -----------------------------
 if(OCAS_BUILD_TOOLS)
-    foreach(tool clean_esa_dataset train_lr_model compact_cdm_dataset generate_synthetic_vectors)
-        add_executable(${tool} tools/${tool}.cpp)
+    set(OCAS_TOOLS
+        clean_esa_dataset:tools/clean_esa_dataset.cpp
+        compact_cdm_dataset:tools/compact_cdm_dataset.cpp
+        generate_synthetic_vectors:tools/generate_synthetic_vectors.cpp
+        convert_socrates:tools/datasets/convert_socrates.cpp
+        convert_ccsds_cdm:tools/datasets/convert_ccsds_cdm.cpp
+        train_lstm:tools/ml/train_lstm.cpp)
+    foreach(entry ${OCAS_TOOLS})
+        string(REPLACE ":" ";" parts ${entry})
+        list(GET parts 0 tool)
+        list(GET parts 1 src)
+        add_executable(${tool} ${src})
         target_link_libraries(${tool} PRIVATE ocas_core)
+        set_target_properties(${tool} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     endforeach()
 endif()
 
 set_target_properties(ocas_flight_exec test_ocas PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-if(OCAS_BUILD_TOOLS)
-    set_target_properties(clean_esa_dataset train_lr_model compact_cdm_dataset generate_synthetic_vectors
-                          PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-endif()

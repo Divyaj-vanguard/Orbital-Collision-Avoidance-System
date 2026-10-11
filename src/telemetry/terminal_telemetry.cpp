@@ -15,9 +15,10 @@ TerminalTelemetry::TerminalTelemetry(bool color, bool show_advisories, std::uint
 
 void TerminalTelemetry::on_session_start(const SessionInfo& s) {
     std::printf("%s%s[SESSION]%s host regime %s%s%s | altitude %.0f km | period %.1f min | "
-                "dv budget %.2f m/s | logistic decision line %.2f | abort every %u\n",
+                "dv budget %.2f m/s | model %s, decision line %.4f | abort every %u\n",
                 a_.bold, a_.cyan, a_.reset, a_.bold, to_string(s.regime), a_.reset, s.altitude_km,
-                s.orbital_period_s / 60.0, s.dv_budget_mps, s.decision_threshold, s.abort_every_n);
+                s.orbital_period_s / 60.0, s.dv_budget_mps, to_string(s.primary_model), s.decision_threshold,
+                s.abort_every_n);
     std::printf("%s[SESSION]%s input: %s\n\n", a_.cyan, a_.reset, s.input_label);
 }
 

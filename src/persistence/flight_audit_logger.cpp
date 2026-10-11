@@ -69,8 +69,9 @@ void FlightAuditLogger::log(const char* event, const char* fmt, ...) noexcept {
 void FlightAuditLogger::on_session_start(const SessionInfo& s) {
     log("SESSION_START",
         ",\"regime\":\"%s\",\"altitude_km\":%.1f,\"period_s\":%.1f,\"dv_budget_mps\":%.3f,"
-        "\"decision_threshold\":%.4f,\"abort_every_n\":%u,\"input\":\"%s\"",
-        to_string(s.regime), s.altitude_km, s.orbital_period_s, s.dv_budget_mps, s.decision_threshold,
+        "\"model\":\"%s\",\"decision_threshold\":%.6f,\"abort_every_n\":%u,\"input\":\"%s\"",
+        to_string(s.regime), s.altitude_km, s.orbital_period_s, s.dv_budget_mps, to_string(s.primary_model),
+        s.decision_threshold,
         s.abort_every_n, s.input_label);
 }
 
@@ -93,11 +94,10 @@ void FlightAuditLogger::on_threat_scored(const ScoredThreat& s) {
     log("THREAT_SCORED",
         ",\"alert_id\":%u,\"seq\":%llu,\"miss_m\":%.1f,\"v_km_s\":%.3f,\"tca_s\":%.1f,\"cov_trace_m2\":%s,"
         "\"model\":\"%s\",\"selection\":\"%s\",\"rule\":\"%s\",\"score\":%.6f,\"logit\":%.4f,"
-        "\"contrib\":[%.4f,%.4f,%.4f,%.4f],\"regime_risk\":%.6f,\"priority\":%.6f,\"actionable\":%s",
+        "\"regime_risk\":%.6f,\"priority\":%.6f,\"actionable\":%s",
         t.alert_id, static_cast<unsigned long long>(s.sequence), t.miss_distance_m, t.relative_speed_km_s,
         t.time_to_tca_sec, cov, to_string(s.risk.model), to_string(s.risk.selection), to_string(s.risk.rule),
-        s.risk.score, s.risk.logit, s.risk.contributions[0], s.risk.contributions[1], s.risk.contributions[2],
-        s.risk.contributions[3], s.regime_risk, s.priority, s.risk.actionable ? "true" : "false");
+        s.risk.score, s.risk.logit, s.regime_risk, s.priority, s.risk.actionable ? "true" : "false");
 }
 
 void FlightAuditLogger::log_record(const char* event, const LedgerRecord& r) noexcept {

@@ -38,8 +38,8 @@ const char* to_string(Urgency v) noexcept {
 
 const char* to_string(RiskModel v) noexcept {
     switch (v) {
-        case RiskModel::LogisticRegression:    return "LOGISTIC";
         case RiskModel::ConservativeThreshold: return "CONSERVATIVE";
+        case RiskModel::Lstm:                  return "LSTM";
     }
     return "?";
 }
