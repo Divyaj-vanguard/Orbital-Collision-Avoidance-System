@@ -35,8 +35,9 @@ struct CliOptions {
     std::size_t max_cdms = 0;
     std::size_t max_advisories = 8;
     std::uint32_t abort_every = 0;
-    std::uint64_t summary_every = 100;
+    std::uint64_t summary_every = 100;  ///< --verbose only
     bool quiet = false;
+    bool verbose = false;
     bool color = true;
     bool evaluate = false;
     bool log_all_threats = false;
@@ -55,8 +56,9 @@ void usage(const char* argv0) {
         "  --lstm-weights PATH   LSTM weights file             [data/models/lstm_weights.txt]\n"
         "  --log PATH            append-only audit log         [logs/flight_audit.log]\n"
         "  --log-all-threats     audit every scored CDM, not only actionable ones\n"
-        "  --summary-every N     cycle summary period, 0 = off [100]\n"
-        "  --quiet               suppress per-advisory lines\n"
+        "  --quiet               summary only, no manoeuvre table\n"
+        "  --verbose             every manoeuvre plus latency, memory and ledger detail\n"
+        "  --summary-every N     with --verbose: cycle summary period, 0 = off [100]\n"
         "  --no-color            disable ANSI colour\n"
         "  --evaluate            offline validation against collision_prob > 1e-4\n",
         argv0);
@@ -88,6 +90,7 @@ bool parse_cli(int argc, char** argv, CliOptions& o) {
         std::size_t n = 0;
         if (a == "--help" || a == "-h") { usage(argv[0]); std::exit(0); }
         else if (a == "--quiet") o.quiet = true;
+        else if (a == "--verbose") o.verbose = true;
         else if (a == "--no-color") o.color = false;
         else if (a == "--evaluate") o.evaluate = true;
         else if (a == "--log-all-threats") o.log_all_threats = true;
@@ -107,6 +110,22 @@ bool parse_cli(int argc, char** argv, CliOptions& o) {
         }
     }
     return true;
+}
+
+/// 24484 -> "24,484". Returns a pointer into one of two rotating buffers.
+const char* commas(std::size_t v) {
+    static char buf[2][32];
+    static int k = 0;
+    char* out = buf[k ^= 1];
+    char tmp[32];
+    const int n = std::snprintf(tmp, sizeof tmp, "%zu", v);
+    int j = 0;
+    for (int i = 0; i < n; ++i) {
+        if (i > 0 && (n - i) % 3 == 0) out[j++] = ',';
+        out[j++] = tmp[i];
+    }
+    out[j] = '\0';
+    return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +153,7 @@ struct Confusion {
 };
 
 int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const ocas::RiskClassifier& clf,
-                   const ocas::Ansi& a) {
+                   bool verbose, const ocas::Ansi& a) {
     constexpr double kLabelPc = 1.0e-4;  // same label definition as tools/clean_esa_dataset.cpp
     Confusion lstm, conservative, hybrid, baseline;
     std::size_t by_sel[5] = {0, 0, 0, 0, 0};
@@ -152,6 +171,21 @@ int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const oc
         conservative.add(p_con, label);
         hybrid.add(sel == ocas::ModelSelection::InDomain ? p_lstm : p_con, label);
         baseline.add(t.miss_distance_m < 1000.0, label);
+    }
+    if (!verbose) {
+        std::printf("%sMODEL CHECK%s  %s real ESA alerts, %s truly dangerous (provider Pc > 1e-4)\n\n", a.bold,
+                    a.reset, commas(rows.size()), commas(positives));
+        std::printf("  %-28s %9s %12s %12s %10s\n", "", "accuracy", "sensitivity", "specificity", "precision");
+        auto line = [](const char* name, const Confusion& c) {
+            std::printf("  %-28s %9.3f %12.3f %12.3f %10.3f\n", name, c.accuracy(), c.recall(), c.specificity(),
+                        c.precision());
+        };
+        line("Simple rule: miss < 1 km", baseline);
+        line("LSTM", lstm);
+        line("Safety rule", conservative);
+        line("OCAS (LSTM + safety rule)", hybrid);
+        std::printf("\n  sensitivity = dangerous alerts caught | specificity = safe alerts correctly left alone\n");
+        return 0;
     }
     std::printf("%s%sOFFLINE EVALUATION%s  label: collision_prob > 1e-4 (per CDM, %zu rows, %zu positive)\n",
                 a.bold, a.cyan, a.reset, rows.size(), positives);
@@ -188,7 +222,7 @@ void print_latency(const char* name, const ocas::LatencyProfiler& p) {
                 double(p.percentile_ns(0.99)) / 1000.0, double(p.max_ns()) / 1000.0);
 }
 
-void print_report(const ocas::OcasPipeline& p, const ocas::FlightAuditLogger& log, const ocas::Ansi& a,
+void print_verbose_report(const ocas::OcasPipeline& p, const ocas::FlightAuditLogger& log, const ocas::Ansi& a,
                   std::uint64_t loop_allocs, std::uint64_t loop_bytes, double wall_ms, std::size_t ingest_overwrites) {
     const ocas::CycleStats& t = p.totals();
     std::printf("\n%s%s================================ MISSION SUMMARY ================================%s\n",
@@ -244,6 +278,34 @@ void print_report(const ocas::OcasPipeline& p, const ocas::FlightAuditLogger& lo
                 static_cast<unsigned long long>(log.records_written()));
 }
 
+void print_summary(const ocas::OcasPipeline& p, const ocas::FlightAuditLogger& log,
+                   const ocas::TerminalTelemetry& term, bool quiet, std::size_t overwrites, const ocas::Ansi& a) {
+    const ocas::CycleStats& t = p.totals();
+    if (!quiet && term.advisories_hidden() > 0) {
+        std::printf("  %s... and %llu more (all listed in %s, or run with --verbose)%s\n", a.dim,
+                    static_cast<unsigned long long>(term.advisories_hidden()), log.path().c_str(), a.reset);
+    }
+    const double budget = p.ledger().committed_dv_total() + p.spacecraft().state().dv_budget_mps;
+    std::printf("%s%sRESULT%s\n", quiet ? "" : "\n", a.bold, a.reset);
+    std::printf("  Threats checked   %s", commas(t.scored));
+    if (t.model_used > 0) std::printf("  (LSTM %s, safety rule %s)\n", commas(t.model_used), commas(t.fallback_used));
+    else std::printf("  (all by the safety rule)\n");
+    if (overwrites > 0) {
+        std::printf("  %sInput overflow    %s oldest alerts dropped (buffer holds 64)%s\n", a.yellow, commas(overwrites),
+                    a.reset);
+    }
+    std::printf("  Dangerous         %s\n", commas(t.actionable));
+    std::printf("  Manoeuvres        %zu planned: %s%zu sent to OEM%s", t.directives, a.green, t.committed, a.reset);
+    if (t.rolled_back) std::printf(", %s%zu aborted%s", a.yellow, t.rolled_back, a.reset);
+    if (t.rejected_dv_cap) std::printf(", %s%zu too large%s", a.red, t.rejected_dv_cap, a.reset);
+    if (t.rejected_budget) std::printf(", %s%zu no fuel left%s", a.red, t.rejected_budget, a.reset);
+    std::printf("\n  Repeat alerts     %s ignored (threat already handled)\n", commas(t.suppressed_duplicates));
+    std::printf("  Fuel used         %.3f of %.2f m/s\n", p.ledger().committed_dv_total(), budget);
+    std::printf("  Speed             %.2f ms per cycle (99th percentile)\n",
+                double(p.cycle_latency().percentile_ns(0.99)) / 1.0e6);
+    std::printf("  Log               %s\n", log.path().c_str());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -258,9 +320,7 @@ int main(int argc, char** argv) {
     }
     const ocas::Ansi a = ocas::make_ansi(opt.color && isatty(STDOUT_FILENO));
 
-    std::printf("%s%sOCAS%s Autonomous Orbital Collision Avoidance System | evasion advisory engine (headless)\n",
-                a.bold, a.cyan, a.reset);
-    std::printf("Team DSCPP-III-2026-T018 | Graphic Era University\n\n");
+    std::printf("%s%sOCAS%s Autonomous Orbital Collision Avoidance System\n", a.bold, a.cyan, a.reset);
 
     // ---- init phase: allocation allowed ---------------------------------
     ocas::PipelineConfig cfg;
@@ -276,16 +336,20 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "error: %s\n", rep.error.c_str());
         return 1;
     }
-    std::printf("[INIT] loaded %zu CDMs from %s (malformed %zu, missing covariance %zu)\n", rep.loaded,
-                opt.input.c_str(), rep.malformed, rep.missing_covariance);
-    std::printf("[INIT] LSTM loaded from %s | decision threshold %.4f\n", opt.lstm_weights.c_str(),
-                cfg.risk.lstm.threshold);
+    if (opt.verbose) {
+        std::printf("[INIT] loaded %zu CDMs from %s (malformed %zu, missing covariance %zu)\n", rep.loaded,
+                    opt.input.c_str(), rep.malformed, rep.missing_covariance);
+        std::printf("[INIT] LSTM loaded from %s | decision threshold %.4f\n", opt.lstm_weights.c_str(),
+                    cfg.risk.lstm.threshold);
+    } else {
+        std::printf("Input %s (%s conjunction alerts)\n", opt.input.c_str(), commas(rep.loaded));
+    }
 
     if (opt.evaluate) {
         ocas::OrbitalRegime r{};
         const bool leo = ocas::RegimeFactory::classify(opt.altitude_km, r) && r == ocas::OrbitalRegime::LEO;
         static const ocas::RiskClassifier clf(cfg.risk, leo);  // ~0.6 MB LSTM state store: static
-        const int rc = run_evaluation(rows, clf, a);
+        const int rc = run_evaluation(rows, clf, opt.verbose, a);
         std::fflush(stdout);
         return rc;
     }
@@ -301,7 +365,10 @@ int main(int argc, char** argv) {
     if (!logger.is_open()) {
         std::fprintf(stderr, "warning: cannot open audit log %s\n", opt.log.c_str());
     }
-    ocas::TerminalTelemetry terminal(opt.color && isatty(STDOUT_FILENO), !opt.quiet, opt.summary_every);
+    const ocas::Detail detail = opt.verbose ? ocas::Detail::Verbose
+                                : opt.quiet ? ocas::Detail::Quiet
+                                            : ocas::Detail::Normal;
+    ocas::TerminalTelemetry terminal(opt.color && isatty(STDOUT_FILENO), detail, opt.summary_every);
     pipeline.attach(&terminal);
     pipeline.attach(&logger);
     if (!pipeline.initialize(cfg, err)) {
@@ -328,7 +395,8 @@ int main(int argc, char** argv) {
     const std::uint64_t loop_bytes = ocas::alloc_tracker::allocated_bytes() - bytes_before;
     // ---- end of cyclic loop ---------------------------------------------
 
-    print_report(pipeline, logger, a, loop_allocs, loop_bytes, wall_ms, overwrites);
+    if (opt.verbose) print_verbose_report(pipeline, logger, a, loop_allocs, loop_bytes, wall_ms, overwrites);
+    else print_summary(pipeline, logger, terminal, opt.quiet, overwrites, a);
     std::fflush(stdout);
     return loop_allocs == 0 ? 0 : 3;
 }

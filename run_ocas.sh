@@ -4,6 +4,7 @@
 # Build, verify and run every scenario.  Team DSCPP-III-2026-T018 | GEU
 #   ./run_ocas.sh              full run
 #   ./run_ocas.sh --no-build   reuse an existing build/
+# Add --verbose to any ocas_flight_exec call for full technical detail.
 # Requires: a C++17 compiler, CMake >= 3.16, and Ninja or Make.
 # ============================================================================
 set -euo pipefail
@@ -20,28 +21,34 @@ if [[ "${1:-}" != "--no-build" ]]; then
     if ! command -v ninja >/dev/null && ! command -v make >/dev/null; then
         echo "error: neither ninja nor make found"; exit 1
     fi
-    step "1/6" "Configure + build (-std=c++17 -Wall -Wextra -Werror -pedantic -O3, generator: $GEN)"
+    step "1/6" "Build"
     if [[ -f "$BUILD_DIR/CMakeCache.txt" ]] && ! grep -q "CMAKE_GENERATOR:INTERNAL=$GEN" "$BUILD_DIR/CMakeCache.txt"; then
         rm -rf "$BUILD_DIR"   # generator changed; CMake refuses to switch in place
     fi
-    cmake -S . -B "$BUILD_DIR" -G "$GEN" -DCMAKE_BUILD_TYPE=Release >/dev/null
-    cmake --build "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+    if ! { cmake -S . -B "$BUILD_DIR" -G "$GEN" -DCMAKE_BUILD_TYPE=Release && cmake --build "$BUILD_DIR"; } \
+        >"$BUILD_DIR/build.log" 2>&1; then
+        tail -30 "$BUILD_DIR/build.log"; echo "error: build failed (full log: $BUILD_DIR/build.log)"; exit 1
+    fi
+    echo "  ok"
 fi
 
-step "2/6" "Verification suite"
-"$BIN/test_ocas"
+step "2/6" "Self-tests"
+if ! out=$("$BIN/test_ocas"); then echo "$out"; exit 1; fi
+echo "  ${out##*$'\n'}"
 
-step "3/6" "Offline evaluation on ESA Kelvins test vectors (label: Pc > 1e-4; LSTM vs fallback)"
+step "3/6" "Model check on real ESA data"
 "$BIN/ocas_flight_exec" --evaluate
 
-step "4/6" "LEO host (550 km): full ESA stream, 24,484 real CDMs"
-"$BIN/ocas_flight_exec" --altitude-km 550 --quiet --summary-every 200
+step "4/6" "LEO satellite, 24,484 real alerts"
+"$BIN/ocas_flight_exec" --altitude-km 550
 
-step "5/6" "GEO host (35,786 km) and MEO host (20,200 km): SYNTHETIC vectors, external aborts on GEO"
-"$BIN/ocas_flight_exec" --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3 --summary-every 0
-"$BIN/ocas_flight_exec" --input data/synthetic_meo_vectors.csv --altitude-km 20200 --batch 8 --summary-every 0
+step "5/6" "MEO and GEO satellites (synthetic alerts; GEO with operator aborts)"
+"$BIN/ocas_flight_exec" --input data/synthetic_meo_vectors.csv --altitude-km 20200 --batch 8 --quiet
+echo
+"$BIN/ocas_flight_exec" --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
 
-step "6/6" "Stress: 80-CDM bursts into the 64-slot ingest ring buffer (overwrite policy)"
-"$BIN/ocas_flight_exec" --batch 80 --max-cdms 800 --quiet --summary-every 0
+step "6/6" "Stress test: alert bursts larger than the input buffer"
+"$BIN/ocas_flight_exec" --batch 80 --max-cdms 800 --quiet
 
-printf '\n\033[1;32mAll stages completed.\033[0m Audit trail: logs/flight_audit.log\n'
+printf '\n\033[1;32mAll stages completed.\033[0m Full decision log: logs/flight_audit.log\n'
