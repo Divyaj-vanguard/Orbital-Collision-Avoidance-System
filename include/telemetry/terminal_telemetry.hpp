@@ -25,9 +25,16 @@ struct Ansi {
 
 Ansi make_ansi(bool enabled) noexcept;
 
+/// How much the terminal shows. Quiet: header and summary only. Normal: the
+/// first kNormalRows advisories in plain columns. Verbose: every advisory with
+/// all fields, plus periodic cycle summaries.
+enum class Detail : std::uint8_t { Quiet, Normal, Verbose };
+
 class TerminalTelemetry final : public IPipelineObserver {
 public:
-    TerminalTelemetry(bool color, bool show_advisories, std::uint64_t summary_every_cycles) noexcept;
+    static constexpr std::uint64_t kNormalRows = 10;
+
+    TerminalTelemetry(bool color, Detail detail, std::uint64_t summary_every_cycles) noexcept;
 
     void on_session_start(const SessionInfo& s) override;
     void on_advisory(const LedgerRecord& r) override;
@@ -35,12 +42,20 @@ public:
     void on_cycle_end(const CycleStats& c) override;
 
     [[nodiscard]] const Ansi& ansi() const noexcept { return a_; }
+    /// Advisories issued but not printed (Normal mode cap).
+    [[nodiscard]] std::uint64_t advisories_hidden() const noexcept {
+        return advisories_seen_ > advisories_printed_ ? advisories_seen_ - advisories_printed_ : 0;
+    }
 
 private:
     Ansi a_;
-    bool show_advisories_;
+    Detail detail_;
     std::uint64_t summary_every_;
+    std::uint64_t advisories_seen_ = 0;
     std::uint64_t advisories_printed_ = 0;
+
+    void print_verbose_row(const LedgerRecord& r);
+    void print_normal_row(const LedgerRecord& r);
 };
 
 }  // namespace ocas

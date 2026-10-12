@@ -191,7 +191,8 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 build/bin/test_ocas
 build/bin/ocas_flight_exec --evaluate
-build/bin/ocas_flight_exec --altitude-km 550 --quiet
+build/bin/ocas_flight_exec --altitude-km 550 --quiet     # result summary only
+build/bin/ocas_flight_exec --altitude-km 550 --verbose   # every manoeuvre + latency, memory, ledger
 build/bin/ocas_flight_exec --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
 build/bin/ocas_flight_exec --help
 ```
