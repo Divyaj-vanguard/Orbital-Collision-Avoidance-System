@@ -4,10 +4,10 @@
  * ESA Kelvins Collision Avoidance Challenge — Dataset Cleaner
  * Team ID: DSCPP-III-2026-T018 | Graphic Era University
  * ============================================================================
- * Reads train_data.csv and test_data.csv (103 columns, ESA CDM format).
+ * Reads data/esa/train_data.csv and data/esa/test_data.csv (103 columns, ESA CDM format).
  * Selects 20 physically meaningful features + derived labels.
- * Outputs:  data/train_clean.csv
- *           data/test_clean.csv
+ * Outputs:  data/esa/train_clean.csv
+ *           data/esa/test_clean.csv
  *
  * COLUMN SELECTION RATIONALE (see comments per field below)
  * ============================================================================
@@ -245,8 +245,8 @@ int main(int argc, char* argv[]) {
 
     struct FileSpec { std::string in, out; };
     std::vector<FileSpec> files = {
-        { base + "/train_data.csv", base + "/data/train_clean.csv" },
-        { base + "/test_data.csv",  base + "/data/test_clean.csv"  }
+        { base + "/data/esa/train_data.csv", base + "/data/esa/train_clean.csv" },
+        { base + "/data/esa/test_data.csv",  base + "/data/esa/test_clean.csv"  }
     };
 
     for (auto& spec : files) {

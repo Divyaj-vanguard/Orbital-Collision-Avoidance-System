@@ -26,9 +26,9 @@
 namespace {
 
 struct CliOptions {
-    std::string input = "data/cleaned_cdm_dataset.csv";
+    std::string input = "data/esa/cleaned_cdm_dataset.csv";
     std::string log = "logs/flight_audit.log";
-    std::string lstm_weights = "data/models/lstm_weights.txt";
+    std::string lstm_weights = "ml/models/lstm_weights.txt";
     double altitude_km = 550.0;
     double dv_budget_mps = 10.0;
     std::size_t batch = 32;
@@ -46,14 +46,14 @@ struct CliOptions {
 void usage(const char* argv0) {
     std::printf(
         "Usage: %s [options]\n"
-        "  --input PATH          CDM CSV (6-field schema)      [data/cleaned_cdm_dataset.csv]\n"
+        "  --input PATH          CDM CSV (6-field schema)      [data/esa/cleaned_cdm_dataset.csv]\n"
         "  --altitude-km X       host altitude, selects regime [550]\n"
         "  --batch N             CDMs ingested per cycle       [32]  (>64 forces ring-buffer overwrite)\n"
         "  --max-cdms N          stop after N rows             [all]\n"
         "  --max-advisories N    directives per cycle, 1..16   [8]\n"
         "  --abort-every N       simulate OEM abort of every Nth staged advisory [0 = off]\n"
         "  --dv-budget X         collision-avoidance dv budget [10 m/s]\n"
-        "  --lstm-weights PATH   LSTM weights file             [data/models/lstm_weights.txt]\n"
+        "  --lstm-weights PATH   LSTM weights file             [ml/models/lstm_weights.txt]\n"
         "  --log PATH            append-only audit log         [logs/flight_audit.log]\n"
         "  --log-all-threats     audit every scored CDM, not only actionable ones\n"
         "  --quiet               summary only, no manoeuvre table\n"
@@ -208,7 +208,7 @@ int run_evaluation(const std::vector<ocas::ConjunctionTelemetry>& rows, const oc
                 "  Accuracy is dominated by the ~99%% negatives: a model that never acts scores %.3f.\n",
                 double(rows.size() - positives) / double(rows.size()));
     std::printf("\n  Notes: the LSTM forecasts each event's FINAL risk, so this per-CDM label is not its training\n"
-                "  target; see tools/ml/train_lstm for its own held-out evaluation. The conservative rule's Pc\n"
+                "  target; see ml/lstm_cpp/train_lstm for its own held-out evaluation. The conservative rule's Pc\n"
                 "  estimate is physics-derived, so agreement with the provider Pc partly reflects shared physics.\n");
     return 0;
 }
@@ -327,7 +327,7 @@ int main(int argc, char** argv) {
     std::string err;
     // The LSTM has no compiled-in weights: an untrained network is not a model.
     if (!ocas::ml::load_lstm(opt.lstm_weights, cfg.risk.lstm, err)) {
-        std::fprintf(stderr, "error: LSTM weights did not load: %s (train with tools/ml/train_lstm)\n", err.c_str());
+        std::fprintf(stderr, "error: LSTM weights did not load: %s (train with ml/lstm_cpp/train_lstm)\n", err.c_str());
         return 1;
     }
     std::vector<ocas::ConjunctionTelemetry> rows;

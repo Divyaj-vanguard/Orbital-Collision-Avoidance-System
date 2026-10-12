@@ -29,18 +29,16 @@ Testing/
 *.pch
 
 # ---- Raw ESA Kelvins data (too large for GitHub) -------------------------------
-# Anchored with '/' so data/cleaned_cdm_dataset.csv (1.4 MB, tracked) is kept.
-/train_data.csv
-/test_data.csv
-/cleaned_cdm_dataset.csv
-data/train_clean.csv
-data/test_clean.csv
+# data/esa/cleaned_cdm_dataset.csv (1.4 MB) is tracked; the rest is downloaded or generated.
+data/esa/train_data.csv
+data/esa/test_data.csv
+data/esa/train_data.zip
+data/esa/train_clean.csv
+data/esa/test_clean.csv
 
 # ---- Live-fetched data ---------------------------------------------------------
-data/spacetrack_live.json
-data/spacetrack_gp.json
+data/spacetrack*.json
 data/celestrak_live.json
-data/fetch_manifest.txt
 
 # ---- Credentials: never commit -------------------------------------------------
 .ocas_credentials
@@ -77,15 +75,11 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
-AutonomousOrbitalCollisionSystem/ml/model.pkl
 .DS_Store
 Thumbs.db
 # ---- Generated metric reports ------------------------------------------------
 results/*
 !results/python_lstm_metrics.txt
-# Random Forest model (110 MB, over the GitHub limit): share it outside git
+# Random Forest model ml/models/random_forest.pkl (110 MB, over the GitHub limit): share it outside git
 *.pkl
-# Autonomous Orbital Collision System
-AutonomousOrbitalCollisionSystem/ml/__pycache__/
-AutonomousOrbitalCollisionSystem/cpp/main.exe
 __pycache__/

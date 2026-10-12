@@ -44,9 +44,9 @@ step "4/6" "LEO satellite, 24,484 real alerts"
 "$BIN/ocas_flight_exec" --altitude-km 550
 
 step "5/6" "MEO and GEO satellites (synthetic alerts; GEO with operator aborts)"
-"$BIN/ocas_flight_exec" --input data/synthetic_meo_vectors.csv --altitude-km 20200 --batch 8 --quiet
+"$BIN/ocas_flight_exec" --input data/synthetic/synthetic_meo_vectors.csv --altitude-km 20200 --batch 8 --quiet
 echo
-"$BIN/ocas_flight_exec" --input data/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
+"$BIN/ocas_flight_exec" --input data/synthetic/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
 
 step "6/6" "Stress test: alert bursts larger than the input buffer"
 "$BIN/ocas_flight_exec" --batch 80 --max-cdms 800 --quiet

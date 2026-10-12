@@ -1,7 +1,7 @@
 // ============================================================================
 // OCAS ground tool: reduce the raw ESA Kelvins CDM CSV (103 columns) to the
-// six-field OCAS schema. Reproduces data/cleaned_cdm_dataset.csv from
-// test_data.csv.
+// six-field OCAS schema. Reproduces data/esa/cleaned_cdm_dataset.csv from
+// data/esa/test_data.csv.
 //   alert_id            = event_id
 //   miss_distance_m     = miss_distance                [m]
 //   relative_speed_km_s = relative_speed / 1000        [m/s -> km/s]
