@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCAS Mission View</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>OCAS Mission View</h1>
+      <p class="sub" id="sources">Loading data…</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel span-2" aria-labelledby="h-globe">
+      <div class="panel-head">
+        <h2 id="h-globe">Real close approaches, CelesTrak SOCRATES</h2>
+        <span class="note" id="soc-summary"></span>
+      </div>
+      <div class="globe-row">
+        <div class="globe-box">
+          <canvas id="globe" width="640" height="560" aria-label="Globe showing the orbits of the selected pair"></canvas>
+          <p class="hint">Drag to rotate. Scroll to zoom.</p>
+        </div>
+        <div class="pair-side">
+          <ol class="pairs" id="pairs"></ol>
+        </div>
+      </div>
+      <div class="pair-detail" id="pair-detail"></div>
+      <div class="timebar">
+        <button id="play" type="button">Play</button>
+        <label for="time">Time from closest approach</label>
+        <input id="time" type="range" min="-30" max="30" step="0.0833333" value="-5">
+        <output id="time-out" for="time">−5.0 min</output>
+      </div>
+    </section>
+
+    <section class="panel span-2" aria-labelledby="h-engine">
+      <div class="panel-head">
+        <h2 id="h-engine">OCAS engine on real ESA alerts</h2>
+        <span class="note" id="engine-note"></span>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="engine-row">
+        <figure class="chart-box">
+          <figcaption>Fuel used over the run (Δv, m/s)</figcaption>
+          <canvas id="fuel" width="560" height="240"></canvas>
+        </figure>
+        <figure class="chart-box">
+          <figcaption>What happened to the planned manoeuvres</figcaption>
+          <div class="stack" id="decisions"></div>
+          <ul class="legend" id="decision-legend"></ul>
+        </figure>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-man">
+      <div class="panel-head"><h2 id="h-man">Most urgent manoeuvres</h2></div>
+      <div class="table-wrap"><table id="man-table"></table></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-model">
+      <div class="panel-head"><h2 id="h-model">Model check</h2><span class="note" id="model-note"></span></div>
+      <div class="table-wrap"><table id="model-table"></table></div>
+      <p class="small">Sensitivity is the share of truly dangerous alerts caught. Specificity is the share of safe
+        alerts correctly left alone. Dangerous alerts are rare, so accuracy alone is misleading.</p>
+    </section>
+    <section class="panel span-2" aria-labelledby="h-corr" id="corr-panel">
+      <div class="panel-head">
+        <h2 id="h-corr">Pearson correlation of LSTM input features</h2>
+        <span class="note" id="corr-note"></span>
+      </div>
+      <div class="corr-row">
+        <div class="table-wrap"><table class="heat" id="heat"></table></div>
+        <div class="corr-side">
+          <div class="scale"><span>−1</span><span class="bar"></span><span>+1</span></div>
+          <p class="small">Each cell is Pearson r between two fields over the training CDMs. The last row and
+            column are the correlation with risk. Fields marked * are log-scaled first. Blue frames mark the four
+            inputs OCAS uses today; the rest were picked by correlation with risk, skipping any field with
+            |r| ≥ 0.85 to one already chosen.</p>
+          <div class="table-wrap"><table id="fs-table"></table></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="small" id="footer"></footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -569,7 +569,7 @@ void test_model_io_and_ml_strategies() {
     // Shipped weight files load and have sane thresholds
 #ifdef OCAS_SOURCE_DIR
     LstmParams sl{};
-    CHECK(load_lstm(std::string(OCAS_SOURCE_DIR) + "/data/models/lstm_weights.txt", sl, err));
+    CHECK(load_lstm(std::string(OCAS_SOURCE_DIR) + "/ml/models/lstm_weights.txt", sl, err));
     CHECK(sl.threshold > 0.0 && sl.threshold < 1.0);
 #endif
 }

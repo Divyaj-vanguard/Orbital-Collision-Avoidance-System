@@ -1,7 +1,7 @@
 // ============================================================================
 // OCAS ML layer: feature transform and fixed-size neural network inference.
 // ============================================================================
-// Used by BOTH the offline trainers (tools/ml) and the flight strategies, so
+// Used by BOTH the offline trainers (ml/lstm_cpp) and the flight strategies, so
 // the feature pipeline and forward pass cannot drift between training and
 // inference (training/serving skew).
 //
