@@ -83,6 +83,13 @@ void displayQueue(queue<Threat> q)
 
 int main()
 {
+#ifdef OCAS_ML_DIR
+    // CMake build (Linux/macOS): paths come from CMakeLists.txt
+    py::scoped_interpreter guard{};
+    py::module_ sys = py::module_::import("sys");
+    sys.attr("path").attr("insert")(0, OCAS_PY_SITE);
+    sys.attr("path").attr("insert")(0, OCAS_ML_DIR);
+#else
     // Set Python installation path
     Py_SetPythonHome(
         L"C:\\Users\\HP\\AppData\\Local\\Programs\\Python\\Python313"
@@ -103,6 +110,7 @@ int main()
         0,
         "C:\\Users\\HP\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages"
     );
+#endif
 
 
     // Normal Queue

@@ -49,7 +49,7 @@ target_link_libraries(ocas_flight_exec PRIVATE ocas_core)
 # ---- PyBind11 threat console (optional) --------------------------------------
 # AutonomousOrbitalCollisionSystem/cpp/: Threat -> FIFO queue -> circular queue -> Python model (Random Forest or LSTM,
 # via PyBind11) -> risk level -> priority queue. Needs a Python environment
-# with torch, numpy and pybind11:
+# with torch, numpy, scikit-learn, pandas and pybind11 (ml/requirements.txt):
 #   cmake -S . -B build -DOCAS_BUILD_PYBIND=ON -DPython_EXECUTABLE=.venv_lstm/bin/python
 option(OCAS_BUILD_PYBIND "Build the PyBind11 threat console in AutonomousOrbitalCollisionSystem/cpp/" OFF)
 if(OCAS_BUILD_PYBIND)
@@ -61,11 +61,18 @@ if(OCAS_BUILD_PYBIND)
                     OUTPUT_VARIABLE OCAS_PY_SITE OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
     find_package(pybind11 CONFIG REQUIRED)
     set(OCAS_CONSOLE_DIR AutonomousOrbitalCollisionSystem/cpp)
-    add_executable(threat_console ${OCAS_CONSOLE_DIR}/main.cpp ${OCAS_CONSOLE_DIR}/CircularQueue.cpp)
-    target_link_libraries(threat_console PRIVATE pybind11::embed)
-    target_compile_definitions(threat_console PRIVATE OCAS_ML_DIR="${CMAKE_SOURCE_DIR}/ml"
-                                                      OCAS_PY_SITE="${OCAS_PY_SITE}")
-    set_target_properties(threat_console PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    # One console per Python model: threat_console_rf and threat_console_lstm
+    foreach(entry rf:AutonomousOrbitalCollisionSystem/ml lstm:ml)
+        string(REPLACE ":" ";" parts ${entry})
+        list(GET parts 0 model)
+        list(GET parts 1 dir)
+        add_executable(threat_console_${model} ${OCAS_CONSOLE_DIR}/main.cpp ${OCAS_CONSOLE_DIR}/CircularQueue.cpp)
+        target_include_directories(threat_console_${model} PRIVATE ${OCAS_CONSOLE_DIR})
+        target_link_libraries(threat_console_${model} PRIVATE pybind11::embed)
+        target_compile_definitions(threat_console_${model} PRIVATE OCAS_ML_DIR="${CMAKE_SOURCE_DIR}/${dir}"
+                                                                   OCAS_PY_SITE="${OCAS_PY_SITE}")
+        set_target_properties(threat_console_${model} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    endforeach()
 endif()
 
 enable_testing()
