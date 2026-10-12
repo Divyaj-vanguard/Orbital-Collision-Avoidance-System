@@ -218,8 +218,8 @@ Two Python models provide that function:
 | Random Forest (scikit-learn, 200 trees) | `AutonomousOrbitalCollisionSystem/ml/predict.py` + `model.pkl` | `model.pkl` (110 MB) is not in git; get it from the team and place it next to `predict.py` |
 | LSTM (PyTorch) | `ml/predict.py`, `ml/models/lstm_risk.pt` | Trained by `ml/train_lstm.py`; also accepts the alert ID to use the event's history |
 
-The console imports whichever `predict.py` comes first on its Python path. Its `main.cpp` currently sets
-Windows paths; edit them for your machine. The LSTM levels are defined on the provider Pc:
+The CMake build makes one console per model and sets the Python paths itself. Built any other way (for example
+on Windows without CMake), `main.cpp` falls back to its original hard-coded Windows paths. The LSTM levels are defined on the provider Pc:
 
 | Level | Pc |
 | :-- | :-- |
@@ -236,7 +236,8 @@ uv pip install --python .venv_lstm/bin/python -r ml/requirements.txt --extra-ind
 .venv_lstm/bin/python ml/train_lstm.py     # ~30 s; needs train_data.csv and test_data.csv in the repo root
 cmake -S . -B build -DOCAS_BUILD_PYBIND=ON -DPython_EXECUTABLE=$PWD/.venv_lstm/bin/python
 cmake --build build
-build/bin/threat_console
+build/bin/threat_console_rf      # Random Forest (needs model.pkl in AutonomousOrbitalCollisionSystem/ml/)
+build/bin/threat_console_lstm    # LSTM
 ```
 
 Training is deterministic (seed 2026): rerunning it reproduces `ml/models/lstm_risk.pt` byte for byte. The

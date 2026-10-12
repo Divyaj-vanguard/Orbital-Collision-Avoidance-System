@@ -88,3 +88,4 @@ results/*
 # Autonomous Orbital Collision System
 AutonomousOrbitalCollisionSystem/ml/__pycache__/
 AutonomousOrbitalCollisionSystem/cpp/main.exe
+__pycache__/
