@@ -8,3 +8,4 @@ numpy==2.4.6
 scikit-learn==1.7.2   # must match the version that saved random_forest.pkl
 pandas==3.0.6
 sgp4==2.24            # visualizer: real orbit positions
+matplotlib==3.11.2    # ml/analysis/correlation_heatmaps.py

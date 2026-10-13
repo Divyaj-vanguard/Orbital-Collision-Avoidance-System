@@ -1,0 +1,4 @@
+2026-10-12T18:22:51Z  data/external/celestrak/socrates/socrates_minrange_2026-10-12T1822Z.csv  22829030 bytes  sha256 964ebbb83df1553125d6b6f7fa38ac0ac45744944f6cabd394c3d0bc293dc8f3  https://celestrak.org/SOCRATES/sort-minRange.csv
+2026-10-12T18:23:00Z  data/external/celestrak/satcat/satcat_2026-10-12T1822Z.csv  6767177 bytes  sha256 68dfe613f418f54f8a16b5094bf311630d8e4b919ad309b4f065c3e94e8b674e  https://celestrak.org/pub/satcat.csv
+2026-10-12T18:32:11Z  data/external/celestrak/socrates/socrates_minrange_2026-10-12T1831Z.csv  22829030 bytes  sha256 964ebbb83df1553125d6b6f7fa38ac0ac45744944f6cabd394c3d0bc293dc8f3  https://celestrak.org/SOCRATES/sort-minRange.csv
+2026-10-12T18:32:29Z  data/external/celestrak/satcat/satcat_2026-10-12T1831Z.csv  6767177 bytes  sha256 68dfe613f418f54f8a16b5094bf311630d8e4b919ad309b4f065c3e94e8b674e  https://celestrak.org/pub/satcat.csv
