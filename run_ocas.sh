@@ -1,41 +1,19 @@
 #!/usr/bin/env bash
-# ============================================================================
-# OCAS: Autonomous Orbital Collision Avoidance System
-# Build, verify and run every scenario.  Team DSCPP-III-2026-T018 | GEU
-#   ./run_ocas.sh              full run
-#   ./run_ocas.sh --no-build   reuse an existing build/
-# Add --quiet to any ocas_flight_exec call to hide the manoeuvre table.
-# Requires: a C++17 compiler, CMake >= 3.16, and Ninja or Make.
-# ============================================================================
+# Build OCAS, run the self-tests, then every scenario.  ./run_ocas.sh --no-build reuses build/.
 set -euo pipefail
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-BUILD_DIR=build
-BIN="$BUILD_DIR/bin"
+cd "$(dirname "$0")"
+BIN=build/bin
 step() { printf '\n\033[1;36m[%s]\033[0m %s\n' "$1" "$2"; }
 
 if [[ "${1:-}" != "--no-build" ]]; then
-    command -v cmake >/dev/null || { echo "error: cmake not found (e.g. 'sudo zypper install cmake ninja' or 'sudo apt install cmake ninja-build')"; exit 1; }
-    GEN="Unix Makefiles"
-    command -v ninja >/dev/null && GEN="Ninja"
-    if ! command -v ninja >/dev/null && ! command -v make >/dev/null; then
-        echo "error: neither ninja nor make found"; exit 1
-    fi
     step "1/6" "Build"
-    if [[ -f "$BUILD_DIR/CMakeCache.txt" ]] && ! grep -q "CMAKE_GENERATOR:INTERNAL=$GEN" "$BUILD_DIR/CMakeCache.txt"; then
-        rm -rf "$BUILD_DIR"   # generator changed; CMake refuses to switch in place
-    fi
-    mkdir -p "$BUILD_DIR"
-    if ! { cmake -S . -B "$BUILD_DIR" -G "$GEN" -DCMAKE_BUILD_TYPE=Release && cmake --build "$BUILD_DIR"; } \
-        >"$BUILD_DIR/build.log" 2>&1; then
-        tail -30 "$BUILD_DIR/build.log"; echo "error: build failed (full log: $BUILD_DIR/build.log)"; exit 1
-    fi
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null
+    cmake --build build >/dev/null
     echo "  ok"
 fi
 
 step "2/6" "Self-tests"
-if ! out=$("$BIN/test_ocas"); then echo "$out"; exit 1; fi
-echo "  ${out##*$'\n'}"
+"$BIN/test_ocas"
 
 step "3/6" "Model check on real ESA data"
 "$BIN/ocas_flight_exec" --evaluate

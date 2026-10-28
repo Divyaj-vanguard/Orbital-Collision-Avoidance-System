@@ -1,6 +1,5 @@
 // OCAS flight executive. Default: stream CDMs through the cyclic pipeline.
 // --evaluate: score the risk models against the provider Pc label offline.
-#include "alloc_tracker.hpp"
 #include "cdm_io.hpp"
 #include "pipeline.hpp"
 
@@ -12,12 +11,14 @@
 #include <string>
 #include <vector>
 
+std::uint64_t allocation_count() noexcept;  // src/alloc_tracker.cpp
+
 namespace {
 
 struct CliOptions {
     std::string input = "data/esa/cleaned_cdm_dataset.csv";
     std::string log = "logs/flight_audit.log";
-    std::string lstm_weights = "ml/models/lstm_weights.txt";
+    std::string lstm_weights = "models/lstm_weights.txt";
     double altitude_km = 550.0;
     double dv_budget_mps = 10.0;
     std::size_t batch = 32;
@@ -40,7 +41,7 @@ void usage(const char* argv0) {
         "  --max-advisories N    directives per cycle, 1..16   [8]\n"
         "  --abort-every N       simulate OEM abort of every Nth staged advisory [0 = off]\n"
         "  --dv-budget X         collision-avoidance dv budget [10 m/s]\n"
-        "  --lstm-weights PATH   LSTM weights file             [ml/models/lstm_weights.txt]\n"
+        "  --lstm-weights PATH   LSTM weights file             [models/lstm_weights.txt]\n"
         "  --log PATH            append-only audit log         [logs/flight_audit.log]\n"
         "  --log-all-threats     audit every scored CDM, not only actionable ones\n"
         "  --quiet               summary only, no manoeuvre table\n"
@@ -160,7 +161,7 @@ int main(int argc, char** argv) {
     ocas::PipelineConfig cfg;
     std::string err;
     if (!ocas::ml::load_lstm(opt.lstm_weights, cfg.lstm, err)) {
-        std::fprintf(stderr, "error: LSTM weights did not load: %s (train with ml/lstm_cpp/train_lstm)\n", err.c_str());
+        std::fprintf(stderr, "error: LSTM weights did not load: %s (train with build/bin/train_lstm)\n", err.c_str());
         return 1;
     }
     std::vector<ocas::ConjunctionTelemetry> rows;
@@ -197,14 +198,14 @@ int main(int argc, char** argv) {
     cycle_us.reserve((rows.size() + opt.batch - 1) / opt.batch);
 
     // Cyclic loop: no heap allocation permitted. The process exits 3 if one happens.
-    const std::uint64_t allocs_before = ocas::allocation_count();
+    const std::uint64_t allocs_before = allocation_count();
     std::size_t overwrites = 0;
     for (std::size_t i = 0; i < rows.size(); i += opt.batch) {
         for (std::size_t k = i; k < std::min(i + opt.batch, rows.size()); ++k) overwrites += pipeline.ingest(rows[k]);
         cycle_us.push_back(pipeline.run_cycle().cycle_latency_us);
     }
     pipeline.finish();
-    const std::uint64_t loop_allocs = ocas::allocation_count() - allocs_before;
+    const std::uint64_t loop_allocs = allocation_count() - allocs_before;
 
     const ocas::CycleStats& t = pipeline.totals();
     if (!opt.quiet && rec.advisories_hidden() > 0) {

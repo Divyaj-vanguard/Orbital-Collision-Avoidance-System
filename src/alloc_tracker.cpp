@@ -1,7 +1,7 @@
-// Replaces global operator new/delete with counting versions.
-#include "alloc_tracker.hpp"
-
+// Replaces the global operator new/delete with versions that count every allocation.
+// Linked into the flight executable only. Direct malloc calls inside the C library are not seen.
 #include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <new>
 
@@ -19,7 +19,7 @@ void* counted_alloc(std::size_t size, std::size_t align = 0) {
 
 }  // namespace
 
-std::uint64_t ocas::allocation_count() noexcept { return g_allocs.load(std::memory_order_relaxed); }
+std::uint64_t allocation_count() noexcept { return g_allocs.load(std::memory_order_relaxed); }
 
 void* operator new(std::size_t n) { return counted_alloc(n); }
 void* operator new[](std::size_t n) { return counted_alloc(n); }

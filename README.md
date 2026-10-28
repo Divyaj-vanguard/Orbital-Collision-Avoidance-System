@@ -65,15 +65,7 @@ computer or a missile approach warning system: OCAS decides *what* should happen
 | `data/esa/cleaned_cdm_dataset.csv` | 24,484 | **Real.** ESA Kelvins Collision Avoidance Challenge test set, 2,167 events, reduced by `tools/compact_cdm_dataset` |
 | `data/synthetic/synthetic_meo_vectors.csv` | 48 | **Synthetic.** `tools/generate_synthetic_vectors`, seed 2026 |
 | `data/synthetic/synthetic_geo_vectors.csv` | 48 | **Synthetic.** same tool |
-| `ml/models/lstm_weights.txt` | – | Output of `ml/lstm_cpp/train_lstm`, same split and seed |
-| `data/external/derived/socrates_{leo,meo,geo}.csv` | 187,878 / 16 / 33 | **Real, but no covariance.** CelesTrak SOCRATES snapshot of 2026-10-09, split by the primary's regime |
-| `data/external/derived/nasa_cara_test_cdms.csv` | 3 | **Real format, test cases.** CCSDS CDMs published in NASA CARA_Analysis_Tools |
-
-`tools/fetch_public_data.sh` downloads the external sources, converts them, and appends each file's
-URL, time, size and SHA-256 to `data/external/fetch_manifest.txt`. SOCRATES is a live feed, so a later fetch
-gives different data. SOCRATES screens TLEs and publishes no covariance, so every SOCRATES row goes to the
-conservative fallback. Its `MAX_PROB` is an upper bound on Pc, not an operational Pc, so these files exercise
-the MEO and GEO paths with real geometry but **cannot be used to score a classifier**.
+| `models/lstm_weights.txt` | – | Output of `tools/train_lstm`, same split and seed |
 
 Schema, enforced exactly by the loader:
 
@@ -88,11 +80,15 @@ alert_id,miss_distance_m,relative_speed_km_s,time_to_tca_sec,cov_trace_m2,collis
 * The ESA data is LEO only, and every CDM in the test set is at least two days before TCA.
   The MEO and GEO files exist to exercise those code paths. They must not be used to report accuracy.
 
-To regenerate the compact file from the raw ESA download (`data/esa/test_data.csv`):
+To regenerate the inputs from the raw ESA download (`data/esa/test_data.csv`) and the synthetic files:
 
 ```bash
 build/bin/compact_cdm_dataset data/esa/test_data.csv data/esa/cleaned_cdm_dataset.csv
+build/bin/generate_synthetic_vectors data/synthetic
 ```
+
+The regenerated CSV holds full-precision numbers, while the committed one was written rounded
+(for example `591157.0` instead of `591156.99000000011`). The engine's results are identical on both.
 
 ---
 
@@ -101,7 +97,7 @@ build/bin/compact_cdm_dataset data/esa/test_data.csv data/esa/cleaned_cdm_datase
 ### 4.1 LSTM model (in-domain)
 
 The LSTM runs in the same C++ as the flight loop, with no ML runtime. It is trained by
-`ml/lstm_cpp/train_lstm` and loaded from a plain-text weight file at init.
+`tools/train_lstm` and loaded from a plain-text weight file at init.
 Its inputs are miss distance, relative speed, time to TCA and covariance trace (log-scaled), standardised with the training-split mean and standard deviation.
 It does not use Pc as an input.
 
@@ -118,7 +114,7 @@ Splitting by event matters. CDMs of one event are near-duplicates, so a per-CDM 
 events into training. Training is deterministic: rerunning the trainer reproduces the committed weights.
 
 The LSTM does not decompose into per-feature contributions, so the audit log records its logit. It sits behind envelope checks and the conservative fallback. Its weights have no compiled-in
-default: if `ml/models/lstm_weights.txt` fails to load, OCAS refuses to start.
+default: if `models/lstm_weights.txt` fails to load, OCAS refuses to start.
 
 ### 4.2 Conservative fallback
 
@@ -139,9 +135,9 @@ The fallback has three rules:
 * **Unusable covariance:** it screens on geometry alone and acts if d < 5 km. A diluted covariance drives
   Pc toward zero exactly when knowledge is worst, so geometry is the safer signal.
 
-### 4.4 Regime strategies and evasion sizing
+### 4.3 Regimes and evasion sizing
 
-The factory maps altitude to a regime. LEO is below 2,000 km. GEO starts at 35,586 km, the lower
+`make_regime()` maps altitude to a regime. LEO is below 2,000 km. GEO starts at 35,586 km, the lower
 edge of the IADC 35,786 ± 200 km protected band. MEO lies between them. Each regime sizes the impulse with
 the Clohessy-Wiltshire (CW) solution for an impulse Δv applied a lead time L before TCA:
 
@@ -160,7 +156,7 @@ instead of being staged.
 Regime risk is a proximity term times a time-pressure term. LEO adds a kinetic-severity factor and
 GEO adds a slow-encounter dwell factor. These weights are engineering heuristics, not trained values.
 
-### 4.5 Advisory lifecycle
+### 4.4 Advisory lifecycle
 
 Each staged advisory records the Δv budget before it and reserves Δv from the budget. The OEM
 FCU acknowledgement is simulated with `--abort-every N`. An external abort of advisory *k* restores
@@ -172,7 +168,7 @@ audit log.
 
 ## 5. Build and run
 
-Prerequisites: a C++17 compiler (GCC ≥ 9 or Clang ≥ 10), CMake ≥ 3.16, and Ninja or Make.
+Prerequisites: a C++17 compiler (GCC ≥ 9 or Clang ≥ 10) and CMake ≥ 3.16.
 
 ```bash
 ./run_ocas.sh                 # build, test, evaluate, run LEO / GEO / MEO / stress scenarios
@@ -181,7 +177,7 @@ Prerequisites: a C++17 compiler (GCC ≥ 9 or Clang ≥ 10), CMake ≥ 3.16, and
 Manual steps:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 build/bin/test_ocas
 build/bin/ocas_flight_exec --evaluate
@@ -190,48 +186,14 @@ build/bin/ocas_flight_exec --input data/synthetic/synthetic_geo_vectors.csv --al
 build/bin/ocas_flight_exec --help
 ```
 
-Ground tools (trainers, dataset converters) need `-DOCAS_BUILD_TOOLS=ON`:
+The same build makes the offline tools:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOCAS_BUILD_TOOLS=ON && cmake --build build
-build/bin/train_lstm           # needs the raw ESA data/esa/train_data.csv
-tools/fetch_public_data.sh
+build/bin/train_lstm               # needs the raw ESA data/esa/train_data.csv; ~10 s
+build/bin/train_lstm --gradcheck   # checks the backpropagation maths against finite differences
 ```
 
 All targets compile with `-std=c++17 -Wall -Wextra -Werror -pedantic -O3`.
-
-### 5.1 Python risk models
-
-Two Python models give a risk level (*Nominal*, *Caution*, *High* or *Critical*) for one threat through
-`predict_risk(miss, velocity, TCA, covariance)`:
-
-| Model | Files | Notes |
-| :-- | :-- | :-- |
-| Random Forest (scikit-learn, 200 trees) | `ml/random_forest/predict.py` + `ml/models/random_forest.pkl` | The model file (110 MB) is not in git; get it from the team and save it as `ml/models/random_forest.pkl` |
-| LSTM (PyTorch) | `ml/lstm/predict.py`, `ml/models/lstm_risk.pt` | Trained by `ml/lstm/train_lstm.py`; also accepts the alert ID to use the event's history |
-
-The levels are defined on the provider Pc:
-
-| Level | Pc |
-| :-- | :-- |
-| Nominal | < 1e-6 |
-| Caution | 1e-6 to < 1e-5 |
-| High | 1e-5 to < 1e-4 |
-| Critical | ≥ 1e-4 |
-
-Pc is the label only, never an input.
-
-```bash
-uv venv .venv_lstm --python 3.11
-uv pip install --python .venv_lstm/bin/python -r ml/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-.venv_lstm/bin/python ml/lstm/train_lstm.py     # ~30 s; needs data/esa/train_data.csv and test_data.csv
-.venv_lstm/bin/python ml/random_forest/predict.py   # Random Forest test prediction
-.venv_lstm/bin/python ml/analysis/pearson_correlation.py
-.venv_lstm/bin/python ml/analysis/select_features_lstm.py   # ~2 min
-```
-
-Training is deterministic (seed 2026): rerunning it reproduces `ml/models/lstm_risk.pt` byte for byte. The
-metrics are written to `results/python_lstm_metrics.txt`.
 
 ---
 
@@ -299,26 +261,28 @@ very strong predictor. OCAS keeps Pc out of its inputs on purpose, so that it ca
 
 ---
 
-## 8. Repository layout
+## 8. Repository layout and reading order
+
+Read the engine in this order; each file builds only on the ones above it.
 
 ```
-include/                 C++ engine headers
-src/                     C++ engine, src/main.cpp is the flight executable
-tests/test_ocas.cpp      verification suite
-ml/lstm/                 Python LSTM: train_lstm.py, predict.py, lstm_common.py
-ml/lstm_cpp/             C++ LSTM trainer for the engine weights, run_ml_eval.sh
-ml/random_forest/        Random Forest: predict.py
-ml/analysis/             pearson_correlation.py, select_features_lstm.py
-ml/models/               every trained model (lstm_weights.txt, lstm_risk*.pt, random_forest.pkl local only)
-ml/requirements.txt      Python dependencies
-tools/                   C++ dataset tools and fetch_public_data.sh
-data/esa/                ESA Kelvins data (raw files git-ignored; cleaned_cdm_dataset.csv tracked)
-data/synthetic/          synthetic MEO and GEO alerts
-data/external/           CelesTrak, NASA CARA downloads, derived CSVs, fetch manifest
-visualizer/              dashboard (index.html) and build_data.py
-results/                 metric reports
-docs/                    Phase-II report and slides
-logs/                    runtime audit log (git-ignored)
+include/types.hpp        every struct and enum the engine passes around
+include/cdm_io.hpp       src/cdm_io.cpp      read and write the six-field CDM CSV
+include/neural.hpp       src/model_io.cpp    LSTM features, one LSTM step, weight file load/save
+include/risk.hpp         src/risk.cpp        conservative rule, model selection, LstmModel
+include/regime.hpp       src/regime.cpp      LEO/MEO/GEO parameters, regime risk, burn sizing (CW)
+include/recorder.hpp     src/recorder.cpp    audit log (JSON lines) and terminal table
+include/pipeline.hpp     src/pipeline.cpp    one cycle: score -> rank -> stage -> commit or abort
+src/main.cpp                                 command line, --evaluate, the cycle loop, summary
+src/alloc_tracker.cpp                        counts heap allocations to prove the loop makes none
+tests/test_ocas.cpp                          self-test
+tools/train_lstm.cpp                         trains models/lstm_weights.txt (backpropagation through time)
+tools/compact_cdm_dataset.cpp                raw ESA file -> data/esa/cleaned_cdm_dataset.csv
+tools/generate_synthetic_vectors.cpp         data/synthetic/*.csv
+models/lstm_weights.txt                      trained LSTM weights
+data/esa/                                    ESA Kelvins data (raw files git-ignored)
+data/synthetic/                              synthetic MEO and GEO alerts
+run_ocas.sh                                  build, test and run every scenario
 ```
 
 ---

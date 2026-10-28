@@ -1,14 +1,7 @@
-// ============================================================================
-// OCAS ground tool: deterministic SYNTHETIC MEO and GEO test vectors.
-// The ESA Kelvins data is LEO-only, so MEO/GEO behaviour is exercised with
-// generated encounters. These are NOT real conjunctions and must not be used
-// to report classifier accuracy.
-//   seed 2026, own SplitMix64 PRNG (identical output on every platform)
-//   collision_prob uses the isotropic approximation
-//     Pc = R^2 / (2 s^2) * exp(-d^2 / (2 s^2)),  R = 20 m,  s^2 = Tr(C)/3
-//   every 16th row has an empty covariance (exercises the fallback path)
+// Writes deterministic SYNTHETIC MEO and GEO alerts (the ESA data is LEO only).
+// They exercise the MEO/GEO code paths and must not be used to report accuracy.
+// Pc uses the same isotropic estimate as the conservative rule; every 16th row has no covariance.
 // Usage: generate_synthetic_vectors <out_dir>
-// ============================================================================
 #include "cdm_io.hpp"
 
 #include <algorithm>

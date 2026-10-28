@@ -1,16 +1,9 @@
-// ============================================================================
-// OCAS ground tool: reduce the raw ESA Kelvins CDM CSV (103 columns) to the
-// six-field OCAS schema. Reproduces data/esa/cleaned_cdm_dataset.csv from
-// data/esa/test_data.csv.
-//   alert_id            = event_id
-//   miss_distance_m     = miss_distance                [m]
-//   relative_speed_km_s = relative_speed / 1000        [m/s -> km/s]
-//   time_to_tca_sec     = time_to_tca * 86400          [days -> s]
-//   cov_trace_m2        = sum of the six squared sigmas (target + chaser RTN);
-//                         empty if any sigma is missing
-//   collision_prob      = 10^risk                      (ESA risk is log10 Pc)
+// Reduces the raw ESA Kelvins CDM file (103 columns) to the six OCAS fields.
+// Rebuilds data/esa/cleaned_cdm_dataset.csv from data/esa/test_data.csv.
+//   miss and speed come straight from the file (speed m/s -> km/s), time to TCA days -> s,
+//   cov_trace_m2 = sum of the six squared position sigmas (empty if any is missing),
+//   collision_prob = 10^risk (ESA stores log10 Pc).
 // Usage: compact_cdm_dataset <esa_raw.csv> <out.csv>
-// ============================================================================
 #include "cdm_io.hpp"
 
 #include <cmath>

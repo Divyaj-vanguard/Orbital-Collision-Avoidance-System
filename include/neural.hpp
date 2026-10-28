@@ -11,7 +11,7 @@
 
 namespace ocas::ml {
 
-// Shared by the trainer (ml/lstm_cpp) and the flight code so features cannot drift.
+// Shared by the trainer (tools/train_lstm.cpp) and the flight code so features cannot drift.
 // Inputs: log10(d+1), v_rel, t_TCA in days, log10(sqrt(TrC)+1). collision_prob is never an input.
 inline constexpr std::size_t kFeatures = 4;
 inline constexpr std::size_t kLstmH = 16;

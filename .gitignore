@@ -1,85 +1,25 @@
-# ============================================================================
-# OCAS: Autonomous Orbital Collision Avoidance System
-# Team DSCPP-III-2026-T018 | Graphic Era University
-# ============================================================================
-
-# ---- Build output ------------------------------------------------------------
+# Build output
 build/
-build-*/
-cmake-build-*/
-bin/
-lib/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-Testing/
-*.o
-*.obj
-*.a
-*.so
-*.so.*
-*.dylib
-*.dll
-*.exe
-*.out
-*.d
-*.gch
-*.pch
 
-# ---- Raw ESA Kelvins data (too large for GitHub) -------------------------------
-# data/esa/cleaned_cdm_dataset.csv (1.4 MB) is tracked; the rest is downloaded or generated.
+# Raw ESA Kelvins files (too large for git); data/esa/cleaned_cdm_dataset.csv is tracked
 data/esa/train_data.csv
 data/esa/test_data.csv
-data/esa/train_data.zip
-data/esa/train_clean.csv
-data/esa/test_clean.csv
+data/esa/*.zip
 
-# ---- Live-fetched data ---------------------------------------------------------
-data/spacetrack*.json
-data/celestrak_live.json
-
-# ---- Credentials: never commit -------------------------------------------------
-.ocas_credentials
-cookies.txt
-*.cookie
-
-# ---- Runtime logs --------------------------------------------------------------
+# Runtime audit log
 logs/
-*.log
 
-# ---- Python / Node leftovers ---------------------------------------------------
+# Local leftovers from the full project (Python models, results, virtualenv)
 .venv*/
-node_modules/
-package-lock.json
+results/
+visualizer/
+ml/
+__pycache__/
+*.pkl
 
-# ---- Editors / OS --------------------------------------------------------------
+# Editors / OS
 .vscode/
 .idea/
 .cache/
 *.swp
-*.swo
-*~
-*.tmp
-*.bak
-
-*.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
 .DS_Store
-Thumbs.db
-# ---- Generated metric reports ------------------------------------------------
-results/*
-!results/python_lstm_metrics.txt
-# Random Forest model ml/models/random_forest.pkl (110 MB, over the GitHub limit): share it outside git
-*.pkl
-__pycache__/

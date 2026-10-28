@@ -181,7 +181,7 @@ void test_lstm() {
     CHECK(ml::save_lstm(path, l, "test") && ml::load_lstm(path, back, err) && back.b == l.b);
     std::filesystem::remove(path);
 #ifdef OCAS_SOURCE_DIR
-    CHECK(ml::load_lstm(std::string(OCAS_SOURCE_DIR) + "/ml/models/lstm_weights.txt", back, err));
+    CHECK(ml::load_lstm(std::string(OCAS_SOURCE_DIR) + "/models/lstm_weights.txt", back, err));
 #endif
 }
 
