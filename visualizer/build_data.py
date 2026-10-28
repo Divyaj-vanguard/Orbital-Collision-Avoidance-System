@@ -89,10 +89,11 @@ def run_model_check():
                          text=True).stdout
     rows = []
     for line in out.splitlines():
-        m = re.match(r"\s{2}(\S.*?)\s{2,}([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$", line)
+        m = re.match(r"\s{2}(\S.*?)\s{2,}([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$", line)
         if m:
             rows.append({"name": m.group(1), "accuracy": float(m.group(2)), "sensitivity": float(m.group(3)),
-                         "specificity": float(m.group(4)), "precision": float(m.group(5))})
+                         "specificity": float(m.group(4)), "precision": float(m.group(5)),
+                         "f1": float(m.group(6))})
     head = re.search(r"([\d,]+) real ESA alerts, ([\d,]+) truly dangerous", out)
     return {"alerts": head.group(1), "positives": head.group(2), "rows": rows} if head else {"rows": rows}
 

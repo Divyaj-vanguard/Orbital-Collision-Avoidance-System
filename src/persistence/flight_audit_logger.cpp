@@ -1,4 +1,3 @@
-// OCAS Module 5c implementation: append-only JSON-lines flight audit logger.
 #include "persistence/flight_audit_logger.hpp"
 
 #include <cmath>
@@ -20,24 +19,8 @@ FlightAuditLogger::FlightAuditLogger(const std::string& path, bool log_every_thr
     out_.open(path_, std::ios::out | std::ios::app);
 }
 
-FlightAuditLogger::~FlightAuditLogger() {
-    if (out_.is_open()) {
-        out_.flush();
-        out_.close();
-    }
-}
-
-void FlightAuditLogger::flush() noexcept {
-    if (out_.is_open()) {
-        out_.flush();
-    }
-}
-
 void FlightAuditLogger::log(const char* event, const char* fmt, ...) noexcept {
-    if (!out_.is_open()) {
-        return;
-    }
-    // Prefix: wall-clock UTC timestamp and event name.
+    if (!out_.is_open()) return;
     const std::time_t now = std::time(nullptr);
     std::tm utc{};
     gmtime_r(&now, &utc);
@@ -46,33 +29,25 @@ void FlightAuditLogger::log(const char* event, const char* fmt, ...) noexcept {
     std::size_t len = std::strftime(buf, cap, "{\"utc\":\"%Y-%m-%dT%H:%M:%SZ\",", &utc);
     int n = std::snprintf(buf + len, cap - len, "\"event\":\"%s\"", event);
     len += static_cast<std::size_t>(n > 0 ? n : 0);
-    if (len >= cap) {
-        len = cap - 1;
-    }
+    if (len >= cap) len = cap - 1;
 
     va_list args;
     va_start(args, fmt);
     n = std::vsnprintf(buf + len, cap - len, fmt, args);
     va_end(args);
-    if (n < 0 || static_cast<std::size_t>(n) >= cap - len) {
-        ++truncated_;
-        len = cap - 1;
-    } else {
-        len += static_cast<std::size_t>(n);
-    }
+    len = (n < 0 || static_cast<std::size_t>(n) >= cap - len) ? cap - 1 : len + static_cast<std::size_t>(n);
     buf[len++] = '}';
     buf[len++] = '\n';
     out_.write(buf, static_cast<std::streamsize>(len));
-    ++records_;
 }
 
 void FlightAuditLogger::on_session_start(const SessionInfo& s) {
     log("SESSION_START",
         ",\"regime\":\"%s\",\"altitude_km\":%.1f,\"period_s\":%.1f,\"dv_budget_mps\":%.3f,"
         "\"model\":\"%s\",\"decision_threshold\":%.6f,\"abort_every_n\":%u,\"input\":\"%s\"",
-        to_string(s.regime), s.altitude_km, s.orbital_period_s, s.dv_budget_mps, to_string(s.primary_model),
-        s.decision_threshold,
-        s.abort_every_n, s.input_label);
+        to_string(s.regime), s.altitude_km, s.orbital_period_s, s.dv_budget_mps,
+        s.regime == OrbitalRegime::LEO ? "LSTM" : "CONSERVATIVE", s.decision_threshold, s.abort_every_n,
+        s.input_label);
 }
 
 void FlightAuditLogger::on_input_rejected(const ConjunctionTelemetry& t, InputRejectReason r) {
@@ -80,17 +55,10 @@ void FlightAuditLogger::on_input_rejected(const ConjunctionTelemetry& t, InputRe
 }
 
 void FlightAuditLogger::on_threat_scored(const ScoredThreat& s) {
-    if (!log_every_threat_ && !s.risk.actionable) {
-        return;
-    }
+    if (!log_every_threat_ && !s.risk.actionable) return;
     const ConjunctionTelemetry& t = s.telemetry;
-    // JSON has no NaN literal; a missing covariance is written as null.
-    char cov[32];
-    if (std::isfinite(t.cov_trace_m2)) {
-        std::snprintf(cov, sizeof cov, "%.6g", t.cov_trace_m2);
-    } else {
-        std::snprintf(cov, sizeof cov, "null");
-    }
+    char cov[32] = "null";  // JSON has no NaN
+    if (std::isfinite(t.cov_trace_m2)) std::snprintf(cov, sizeof cov, "%.6g", t.cov_trace_m2);
     log("THREAT_SCORED",
         ",\"alert_id\":%u,\"seq\":%llu,\"miss_m\":%.1f,\"v_km_s\":%.3f,\"tca_s\":%.1f,\"cov_trace_m2\":%s,"
         "\"model\":\"%s\",\"selection\":\"%s\",\"rule\":\"%s\",\"score\":%.6f,\"logit\":%.4f,"
@@ -123,15 +91,15 @@ void FlightAuditLogger::on_rollback(std::uint32_t alert_id, std::size_t unwound,
 
 void FlightAuditLogger::on_cycle_end(const CycleStats& c) {
     if (c.directives == 0 && c.rejected_input == 0) {
-        flush();
-        return;  // keep the ledger focused on cycles where something happened
+        out_.flush();
+        return;
     }
     log("CYCLE_END",
         ",\"cycle\":%llu,\"ingested\":%zu,\"actionable\":%zu,\"directives\":%zu,\"committed\":%zu,"
         "\"rolled_back\":%zu,\"rejected\":%zu,\"suppressed\":%zu,\"latency_us\":%.2f",
         static_cast<unsigned long long>(c.cycle), c.ingested, c.actionable, c.directives, c.committed,
         c.rolled_back, c.rejected_dv_cap + c.rejected_budget, c.suppressed_duplicates, c.cycle_latency_us);
-    flush();
+    out_.flush();
 }
 
 void FlightAuditLogger::on_session_end(const CycleStats& c) {
@@ -142,7 +110,7 @@ void FlightAuditLogger::on_session_end(const CycleStats& c) {
         static_cast<unsigned long long>(c.cycle), c.ingested, c.rejected_input, c.actionable, c.directives,
         c.committed, c.rolled_back, c.rejected_dv_cap, c.rejected_budget,
         static_cast<unsigned long long>(c.ingest_overflow_total), c.dv_budget_remaining_mps);
-    flush();
+    out_.flush();
 }
 
 }  // namespace ocas

@@ -1,4 +1,3 @@
-// OCAS core enum-to-string helpers. Return static literals; never allocate.
 #include "core/types.hpp"
 
 #include <cmath>

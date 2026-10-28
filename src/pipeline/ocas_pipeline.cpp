@@ -1,4 +1,3 @@
-// OCAS Module 6 implementation: the cyclic processing loop.
 #include "pipeline/ocas_pipeline.hpp"
 
 #include <cmath>
@@ -41,8 +40,7 @@ bool OcasPipeline::initialize(const PipelineConfig& cfg, std::string& error) {
         return false;
     }
     cfg_ = cfg;
-    // The LSTM was trained on ESA LEO data only.
-    classifier_.emplace(cfg.risk, regime_->regime() == OrbitalRegime::LEO);
+    classifier_.emplace(cfg.lstm, regime_->regime() == OrbitalRegime::LEO);  // LSTM trained on LEO only
 
     SpacecraftState s{};
     s.altitude_km = cfg.altitude_km;
@@ -54,8 +52,7 @@ bool OcasPipeline::initialize(const PipelineConfig& cfg, std::string& error) {
     info.altitude_km = cfg.altitude_km;
     info.orbital_period_s = regime_->orbital_period_s();
     info.dv_budget_mps = cfg.dv_budget_mps;
-    info.primary_model = RiskModel::Lstm;
-    info.decision_threshold = cfg.risk.lstm.threshold;
+    info.decision_threshold = cfg.lstm.threshold;
     info.abort_every_n = cfg.abort_every_n;
     info.input_label = cfg.input_label;
     observers_.notify([&](IPipelineObserver& o) { o.on_session_start(info); });
@@ -90,30 +87,22 @@ void OcasPipeline::score_buffered(CycleStats& stats) {
         cdm_latency_.record(elapsed_ns(start));
 
         ++stats.scored;
-        if (s.risk.model != RiskModel::ConservativeThreshold) {
-            ++stats.model_used;
-        } else {
-            ++stats.fallback_used;
-        }
+        if (s.risk.model == RiskModel::Lstm) ++stats.model_used;
+        else ++stats.fallback_used;
         if (s.risk.actionable) ++stats.actionable;
         observers_.notify([&](IPipelineObserver& o) { o.on_threat_scored(s); });
     }
-    if (heap_.size() > heap_peak_) heap_peak_ = heap_.size();
 }
 
 void OcasPipeline::issue_advisories(CycleStats& stats) {
     ScoredThreat top{};
     while (stats.directives < cfg_.max_advisories_per_cycle && heap_.pop(top)) {
-        if (!top.risk.actionable) {
-            ++stats.monitored;  // heap order puts every actionable threat first
-            break;
-        }
+        if (!top.risk.actionable) break;  // heap order puts every actionable threat first
         const std::uint32_t id = top.telemetry.alert_id;
         if (already_advised(id)) {
             ++stats.suppressed_duplicates;
             continue;
         }
-        const auto start = SteadyClock::now();
         LedgerRecord rec{};
         rec.cycle = cycle_;
         rec.directive = regime_->formulate_evasion_directive(top.telemetry);
@@ -128,35 +117,30 @@ void OcasPipeline::issue_advisories(CycleStats& stats) {
             rec.status = AdvisoryStatus::RejectedBudget;
             ++stats.rejected_budget;
         } else {
-            caretaker_.checkpoint(spacecraft_, id, cycle_);  // depth >= max per cycle, cannot fail
+            caretaker_.checkpoint(spacecraft_, id);  // depth >= max per cycle, cannot fail
             spacecraft_.reserve(rec.directive);
             rec.status = AdvisoryStatus::Staged;
         }
-        const MissionLedger::Handle h = ledger_.append(rec);
+        LedgerRecord& stored = ledger_.append(rec);
         if (rec.status == AdvisoryStatus::Staged) {
-            staged_[staged_count_++] = Staged{h, id, ++staged_ordinal_};
+            staged_[staged_count_++] = Staged{&stored, id, ++staged_ordinal_};
         } else {
             advised_.push(id);  // escalated to ground; do not re-alert on every CDM update
         }
         cycle_ids_[cycle_id_count_++] = id;
         ++stats.directives;
-        advisory_latency_.record(elapsed_ns(start));
         observers_.notify([&](IPipelineObserver& o) { o.on_advisory(rec); });
     }
-    stats.monitored += heap_.size();
 }
 
-void OcasPipeline::resolve(MissionLedger::Handle h, AdvisoryStatus s) {
-    ledger_.set_status(h, s);
-    if (const LedgerRecord* r = ledger_.get(h)) {
-        observers_.notify([&](IPipelineObserver& o) { o.on_advisory_resolved(*r); });
-    }
+void OcasPipeline::resolve(LedgerRecord& r, AdvisoryStatus s) {
+    r.status = s;
+    observers_.notify([&](IPipelineObserver& o) { o.on_advisory_resolved(r); });
 }
 
 void OcasPipeline::acknowledge_advisories(CycleStats& stats) {
-    // Simulated OEM flight-bus acknowledgement. An abort of advisory k also
-    // invalidates every advisory staged after k: they were sized against a
-    // state that included k's delta-v reservation.
+    // An abort of advisory k also undoes every advisory staged after k: they were
+    // sized against a state that included k's reservation.
     std::size_t abort_at = staged_count_;
     if (cfg_.abort_every_n != 0) {
         for (std::size_t i = 0; i < staged_count_; ++i) {
@@ -170,18 +154,17 @@ void OcasPipeline::acknowledge_advisories(CycleStats& stats) {
         const std::uint32_t aborted_id = staged_[abort_at].alert_id;
         const std::size_t unwound = caretaker_.unwind_to(spacecraft_, aborted_id);
         for (std::size_t i = abort_at; i < staged_count_; ++i) {
-            resolve(staged_[i].handle, AdvisoryStatus::RolledBack);
+            resolve(*staged_[i].record, AdvisoryStatus::RolledBack);
         }
         stats.rolled_back += unwound;
         observers_.notify([&](IPipelineObserver& o) { o.on_rollback(aborted_id, unwound, spacecraft_.state()); });
     }
     for (std::size_t i = 0; i < abort_at; ++i) {
-        resolve(staged_[i].handle, AdvisoryStatus::Committed);
+        resolve(*staged_[i].record, AdvisoryStatus::Committed);
         advised_.push(staged_[i].alert_id);
         ++stats.committed;
     }
     caretaker_.commit_all();
-    spacecraft_.acknowledge();
 }
 
 CycleStats OcasPipeline::run_cycle() {
@@ -198,7 +181,6 @@ CycleStats OcasPipeline::run_cycle() {
     heap_.clear();  // unadvised threats are re-scored when their next CDM update arrives
 
     stats.ingest_overflow_total = ingest_.overflow_count();
-    stats.heap_rejected_total = heap_.rejected_count();
     stats.dv_budget_remaining_mps = spacecraft_.state().dv_budget_mps;
     const std::uint64_t ns = elapsed_ns(start);
     cycle_latency_.record(ns);
@@ -223,10 +205,7 @@ void OcasPipeline::accumulate(const CycleStats& c) noexcept {
     totals_.rejected_dv_cap += c.rejected_dv_cap;
     totals_.rejected_budget += c.rejected_budget;
     totals_.suppressed_duplicates += c.suppressed_duplicates;
-    totals_.monitored += c.monitored;
     totals_.ingest_overflow_total = c.ingest_overflow_total;
-    totals_.heap_rejected_total = c.heap_rejected_total;
-    totals_.cycle_latency_us += c.cycle_latency_us;
     totals_.dv_budget_remaining_mps = c.dv_budget_remaining_mps;
 }
 

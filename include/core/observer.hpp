@@ -1,8 +1,3 @@
-// ============================================================================
-// OCAS Observer pattern: pipeline events fan out to a fixed set of observers
-// (terminal telemetry, flight audit logger, ...). Registry is a fixed array of
-// non-owning pointers, so notification never allocates.
-// ============================================================================
 #ifndef OCAS_CORE_OBSERVER_HPP
 #define OCAS_CORE_OBSERVER_HPP
 
@@ -22,7 +17,6 @@ struct SessionInfo {
     double altitude_km = 0.0;
     double orbital_period_s = 0.0;
     double dv_budget_mps = 0.0;
-    RiskModel primary_model = RiskModel::Lstm;
     double decision_threshold = 0.0;
     std::uint32_t abort_every_n = 0;
     const char* input_label = "";
@@ -34,7 +28,7 @@ struct CycleStats {
     std::size_t rejected_input = 0;
     std::size_t scored = 0;
     std::size_t actionable = 0;
-    std::size_t model_used = 0;     ///< CDMs scored by the trained LSTM
+    std::size_t model_used = 0;
     std::size_t fallback_used = 0;
     std::size_t directives = 0;
     std::size_t committed = 0;
@@ -42,9 +36,7 @@ struct CycleStats {
     std::size_t rejected_dv_cap = 0;
     std::size_t rejected_budget = 0;
     std::size_t suppressed_duplicates = 0;
-    std::size_t monitored = 0;  ///< Scored but not advised this cycle
     std::uint64_t ingest_overflow_total = 0;
-    std::uint64_t heap_rejected_total = 0;
     double cycle_latency_us = 0.0;
     double dv_budget_remaining_mps = 0.0;
 };
@@ -71,21 +63,15 @@ template <std::size_t MaxObservers>
 class ObserverRegistry {
 public:
     bool attach(IPipelineObserver* o) noexcept {
-        if (o == nullptr || count_ == MaxObservers) {
-            return false;
-        }
+        if (o == nullptr || count_ == MaxObservers) return false;
         observers_[count_++] = o;
         return true;
     }
 
     template <typename Fn>
     void notify(Fn&& fn) const {
-        for (std::size_t i = 0; i < count_; ++i) {
-            fn(*observers_[i]);
-        }
+        for (std::size_t i = 0; i < count_; ++i) fn(*observers_[i]);
     }
-
-    [[nodiscard]] std::size_t size() const noexcept { return count_; }
 
 private:
     std::array<IPipelineObserver*, MaxObservers> observers_{};
@@ -94,4 +80,4 @@ private:
 
 }  // namespace ocas
 
-#endif  // OCAS_CORE_OBSERVER_HPP
+#endif

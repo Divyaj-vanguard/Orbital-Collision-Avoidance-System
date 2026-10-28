@@ -1,4 +1,3 @@
-// OCAS ML weight-file reader/writer. Init-time / offline only (allocates).
 #include "ml/neural.hpp"
 
 #include <cmath>

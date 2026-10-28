@@ -1,7 +1,4 @@
-// ============================================================================
-// OCAS verification suite. Self-contained (no framework dependency).
-// Each TEST is a function; CHECK records failures and continues.
-// ============================================================================
+// OCAS verification suite. CHECK records a failure and continues.
 #include "core/cdm_io.hpp"
 #include "ml/neural.hpp"
 #include "ml/sequence_store.hpp"
@@ -16,7 +13,6 @@
 
 #include <cmath>
 #include <cstdio>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -67,20 +63,20 @@ ConjunctionTelemetry cdm(std::uint32_t id, double d, double v, double t, double 
 // --------------------------------------------------------------------------
 void test_circular_buffer() {
     CircularBuffer<int, 4> rb;
-    CHECK(rb.empty() && rb.capacity() == 4);
+    CHECK(rb.empty());
     CHECK(alignof(decltype(rb)) == kCacheLineBytes);
     for (int i = 1; i <= 4; ++i) CHECK(rb.push(i) == PushResult::Stored);
-    CHECK(rb.full() && !rb.overflow_occurred());
+    CHECK(rb.size() == 4 && rb.overflow_count() == 0);
     CHECK(rb.push(5) == PushResult::OverwroteOldest);  // evicts 1
     CHECK(rb.push(6) == PushResult::OverwroteOldest);  // evicts 2
-    CHECK(rb.overflow_count() == 2 && rb.total_pushed() == 6);
-    CHECK(*rb.peek_oldest() == 3 && *rb.peek_newest() == 6);
+    CHECK(rb.overflow_count() == 2);
+    CHECK(rb.at(0) == 3 && rb.at(3) == 6);
     CHECK(rb.any_of([](int x) { return x == 5; }) && !rb.any_of([](int x) { return x == 1; }));
     int out = 0;
     for (int expect = 3; expect <= 6; ++expect) {
         CHECK(rb.pop(out) && out == expect);
     }
-    CHECK(!rb.pop(out) && rb.empty() && rb.peek_oldest() == nullptr);
+    CHECK(!rb.pop(out) && rb.empty());
     // wrap-around after partial drain
     rb.push(7); rb.push(8); rb.pop(out); rb.push(9); rb.push(10); rb.push(11);
     CHECK(rb.size() == 4 && rb.at(0) == 8 && rb.at(3) == 11);
@@ -98,18 +94,16 @@ void test_max_heap() {
         lcg = lcg * 1103515245u + 12345u;
         CHECK(h.push(static_cast<int>((lcg >> 8) % 1000)));
     }
-    CHECK(h.full() && h.is_valid_heap());
+    CHECK(h.size() == 128 && h.is_valid_heap());
     CHECK(!h.push(5) && h.rejected_count() == 1);
     int prev = 1 << 30, x = 0, n = 0;
     bool sorted = true;
-    const int top = *h.top();
     while (h.pop(x)) {
-        if (n == 0 && x != top) sorted = false;
         if (x > prev) sorted = false;
         prev = x;
         ++n;
     }
-    CHECK(sorted && n == 128 && h.top() == nullptr);
+    CHECK(sorted && n == 128 && h.size() == 0);
 
     // ThreatComparator semantics
     ThreatComparator less;
@@ -176,10 +170,8 @@ ocas::ml::LstmParams miss_distance_lstm() {
 }
 
 void test_risk_classifier_selection() {
-    RiskModelConfig rc{};
-    rc.lstm = miss_distance_lstm();
-    static RiskClassifier leo(rc, true);
-    static RiskClassifier geo(rc, false);
+    static RiskClassifier leo(miss_distance_lstm(), true);
+    static RiskClassifier geo(miss_distance_lstm(), false);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, 1e6)) == ModelSelection::InDomain);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, kNaN)) == ModelSelection::CovarianceMissing);
     CHECK(leo.select(cdm(1, 1000, 10, 2e5, 0.0)) == ModelSelection::CovarianceMissing);
@@ -278,20 +270,18 @@ void test_memento_state_stack() {
     d.delta_v_mps = 0.25;
 
     for (std::uint32_t id = 1; id <= 3; ++id) {
-        CHECK(ct.checkpoint(sc, id, 1));
+        CHECK(ct.checkpoint(sc, id));
         CHECK(sc.reserve(d));
     }
     CHECK_NEAR(sc.state().dv_budget_mps, 0.25, 1e-12);
-    CHECK(ct.depth() == 3 && (sc.state().status_flags & status::kAdvisoryPending));
+    CHECK(ct.depth() == 3);
 
-    CHECK(ct.rollback_last(sc));  // undo id 3
+    CHECK(ct.unwind_to(sc, 99) == 0 && ct.depth() == 3);  // unknown id: no change
+    CHECK(ct.unwind_to(sc, 3) == 1 && ct.depth() == 2);   // undo 3 only
     CHECK_NEAR(sc.state().dv_budget_mps, 0.5, 1e-12);
-    CHECK(sc.state().status_flags & status::kRollback);
-
-    CHECK(ct.unwind_to(sc, 99) == 0 && ct.depth() == 2);  // unknown id: no change
     CHECK(ct.unwind_to(sc, 1) == 2 && ct.depth() == 0);   // undo 2 then 1
     CHECK_NEAR(sc.state().dv_budget_mps, 1.0, 1e-12);
-    CHECK(sc.state().advisories_reserved == 0);
+    CHECK(ct.rollbacks() == 3);
 
     EvasionDirective big{};
     big.delta_v_mps = 5.0;
@@ -305,14 +295,13 @@ void test_memento_state_stack() {
 
 void test_mission_ledger() {
     static MissionLedger L;  // large pool: static storage
-    L.clear();
     LedgerRecord r{};
-    std::vector<MissionLedger::Handle> hs;
+    std::vector<LedgerRecord*> recs;
     for (std::uint32_t i = 0; i < 5; ++i) {
         r.cycle = i;
         r.directive.alert_id = i;
         r.directive.delta_v_mps = 0.1 * (i + 1);
-        hs.push_back(L.append(r));
+        recs.push_back(&L.append(r));
     }
     CHECK(L.size() == 5);
     std::vector<std::uint32_t> fwd, bwd;
@@ -320,15 +309,20 @@ void test_mission_ledger() {
     L.traverse_backward([&](const LedgerRecord& x) { bwd.push_back(x.directive.alert_id); });
     CHECK((fwd == std::vector<std::uint32_t>{0, 1, 2, 3, 4}) && (bwd == std::vector<std::uint32_t>{4, 3, 2, 1, 0}));
 
-    CHECK(L.set_status(hs[1], AdvisoryStatus::Committed) && L.set_status(hs[3], AdvisoryStatus::Committed));
-    CHECK(L.set_status(hs[4], AdvisoryStatus::RolledBack));
-    CHECK_NEAR(L.committed_dv_total(), 0.2 + 0.4, 1e-12);
-    CHECK_NEAR(L.committed_dv_since_cycle(2), 0.4, 1e-12);
+    recs[1]->status = recs[3]->status = AdvisoryStatus::Committed;
+    double committed = 0.0;
+    L.traverse_backward([&](const LedgerRecord& x) {
+        if (x.status == AdvisoryStatus::Committed) committed += x.directive.delta_v_mps;
+    });
+    CHECK_NEAR(committed, 0.2 + 0.4, 1e-12);
 
-    // Fill past capacity: oldest evicted, stale handle detected
+    // Fill past capacity: oldest evicted first, order kept
+    r.directive.alert_id = 99;
     for (std::size_t i = 0; i < MissionLedger::kCapacity; ++i) L.append(r);
     CHECK(L.size() == MissionLedger::kCapacity && L.evicted_count() == 5);
-    CHECK(!L.set_status(hs[0], AdvisoryStatus::Committed) && L.get(hs[0]) == nullptr);
+    std::uint32_t first = 0;
+    L.traverse_forward([&](const LedgerRecord& x) { if (first == 0) first = x.directive.alert_id; });
+    CHECK(first == 99);
 }
 
 // --------------------------------------------------------------------------
@@ -355,8 +349,6 @@ void test_cdm_io() {
               back.relative_speed_km_s == src.relative_speed_km_s && back.time_to_tca_sec == src.time_to_tca_sec &&
               back.collision_prob == src.collision_prob &&
               (back.cov_trace_m2 == src.cov_trace_m2 || (std::isnan(back.cov_trace_m2) && std::isnan(src.cov_trace_m2))));
-        CHECK(format_cdm_json(src, buf, sizeof buf) > 0);
-        CHECK(std::isnan(src.cov_trace_m2) == (std::strstr(buf, "\"cov_trace_m2\":null") != nullptr));
     }
     char tiny[8];
     CHECK(format_cdm_csv_line(cdm(1, 1, 1, 1, 1), tiny, sizeof tiny) == 0);
@@ -395,7 +387,7 @@ void test_pipeline_integration() {
     PipelineConfig cfg;
     cfg.altitude_km = 550.0;
     cfg.dv_budget_mps = 1.0;
-    cfg.risk.lstm = miss_distance_lstm();
+    cfg.lstm = miss_distance_lstm();
     std::string err;
 
     {
@@ -414,7 +406,11 @@ void test_pipeline_integration() {
         CHECK(c.directives == 2 && c.committed == 2 && c.rolled_back == 0);
         CHECK(obs.rejected == 1 && obs.advisories == 2 && obs.resolved == 2);
         CHECK(p.spacecraft().state().dv_budget_mps < 1.0);
-        CHECK_NEAR(p.ledger().committed_dv_total(), 1.0 - p.spacecraft().state().dv_budget_mps, 1e-12);
+        double committed = 0.0;
+        p.ledger().traverse_forward([&](const LedgerRecord& r) {
+            if (r.status == AdvisoryStatus::Committed) committed += r.directive.delta_v_mps;
+        });
+        CHECK_NEAR(committed, 1.0 - p.spacecraft().state().dv_budget_mps, 1e-12);
 
         // Same event updated next cycle: suppressed, no new directive
         p.ingest(cdm(100, 25.0, 12.0, 180000.0, 3.0 * 100.0 * 100.0));
@@ -521,11 +517,8 @@ void test_ml_inference() {
 void test_sequence_store() {
     using namespace ocas::ml;
     static SequenceStateStore<16> store;
-    store.clear();
-    std::size_t steps = 0;
-    store.acquire(7, &steps).h[0] = 42.0;
-    CHECK(steps == 1);
-    CHECK(store.acquire(7, &steps).h[0] == 42.0 && steps == 2);  // same event keeps its state
+    store.acquire(7).h[0] = 42.0;
+    CHECK(store.acquire(7).h[0] == 42.0);  // same event keeps its state
     CHECK(store.acquire(8).h[0] == 0.0);                        // new event starts from zero
     for (std::uint32_t id = 100; id < 140; ++id) store.acquire(id);
     CHECK(store.size() == 16 && store.evictions() == 42 - 16);
@@ -551,18 +544,14 @@ void test_model_io_and_ml_strategies() {
     l.b[2 * kLstmH] = std::atanh(0.5);
     l.w_out[0] = 1.0;
     static LstmStrategy ls(l);
-    ls.reset();
     const auto a1 = ls.assess(cdm(1, 500, 10, 3e5, 1e6));
     const auto b1 = ls.assess(cdm(2, 500, 10, 3e5, 1e6));
     const auto a2 = ls.assess(cdm(1, 500, 10, 3e5, 1e6));
     CHECK(a1.model == RiskModel::Lstm && a1.score == b1.score && ls.tracked_events() == 2);
     CHECK(a2.logit != a1.logit);  // second step of event 1 sees its own history
 
-    // Classifier routes in-domain CDMs to the configured primary, others to the fallback
-    RiskModelConfig cfg{};
-    cfg.lstm = l;
-    static RiskClassifier clf(cfg, true);
-    CHECK(clf.primary().id() == RiskModel::Lstm);
+    // Classifier routes in-domain CDMs to the LSTM, others to the fallback
+    static RiskClassifier clf(l, true);
     CHECK(clf.assess(cdm(1, 500, 10, 3e5, 1e6)).model == RiskModel::Lstm);
     CHECK(clf.assess(cdm(1, 500, 10, 3e5, kNaN)).model == RiskModel::ConservativeThreshold);
 
@@ -612,7 +601,7 @@ int main() {
         {"evasion directive physics", test_evasion_directives},
         {"memento state stack", test_memento_state_stack},
         {"mission ledger", test_mission_ledger},
-        {"CDM CSV/JSON I/O", test_cdm_io},
+        {"CDM CSV I/O", test_cdm_io},
         {"pipeline integration", test_pipeline_integration},
         {"audit logger", test_audit_logger},
         {"ML features + LSTM forward pass", test_ml_inference},

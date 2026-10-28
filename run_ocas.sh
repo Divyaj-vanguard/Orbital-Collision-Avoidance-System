@@ -4,7 +4,7 @@
 # Build, verify and run every scenario.  Team DSCPP-III-2026-T018 | GEU
 #   ./run_ocas.sh              full run
 #   ./run_ocas.sh --no-build   reuse an existing build/
-# Add --verbose to any ocas_flight_exec call for full technical detail.
+# Add --quiet to any ocas_flight_exec call to hide the manoeuvre table.
 # Requires: a C++17 compiler, CMake >= 3.16, and Ninja or Make.
 # ============================================================================
 set -euo pipefail

@@ -42,7 +42,7 @@ computer or a missile approach warning system: OCAS decides *what* should happen
 | :-- | :-- | :-- |
 | 1. Ingestion buffer | `include/ingestion/circular_buffer.hpp` | Class template `CircularBuffer<T, N>` on `std::array`, 64-byte aligned, overwrite-oldest with overflow counter |
 | 2. Risk classifier | `include/risk/risk_strategy.hpp`, `src/risk/risk_classifier.cpp` | Strategy: `IRiskStrategy` → `LstmStrategy`, `ConservativeThresholdStrategy`; `RiskClassifier` is the context and records *why* it chose a model |
-| 3. Priority ranking | `include/priority/max_heap.hpp`, `src/priority/max_heap.cpp` | `MaxHeap<T, N, Compare>` over a fixed array with hole-based sift, `ThreatComparator` functor |
+| 3. Priority ranking | `include/priority/max_heap.hpp` | `MaxHeap<T, N, Compare>` over a fixed array with hole-based sift, `ThreatComparator` functor |
 | 4. Regime and advisory | `include/regime/regime_strategy.hpp`, `src/regime/regime_factory.cpp` | Strategy + Factory: `OrbitalRegimeStrategy` → `LEORegime`, `MEORegime`, `GEORegime`; `RegimeFactory::create_regime(altitude_km)` |
 | 5. Persistence | `include/persistence/*.hpp`, `src/persistence/*.cpp` | Memento (`Spacecraft`, `SpacecraftMemento`, `StateCaretaker`, `StateStack<T, N>`); doubly linked `MissionLedger` on a node pool; RAII `FlightAuditLogger` |
 | 6. Orchestrator | `include/pipeline/ocas_pipeline.hpp`, `src/pipeline/ocas_pipeline.cpp`, `src/main.cpp` | Observer (`IPipelineObserver`, fixed `ObserverRegistry`), latency profiler, allocation counter |
@@ -57,7 +57,7 @@ Supporting code lives in `include/core/` (domain types, CSV/JSON I/O, observer, 
   run prints the count of allocations between the first and last cycle. The executable exits with
   status 3 if that count is not zero. Allocation happens only at init (dataset load, strategy objects).
 * **Bounded work per operation.** Buffer push/pop O(1), heap push/pop O(log n) and top O(1), risk
-  scoring O(1), memento checkpoint and single rollback O(1), ledger append O(1).
+  scoring O(1), memento checkpoint O(1) and unwind O(depth ≤ 16), ledger append O(1).
 * **No silent data loss.** Ring-buffer overwrites, heap rejections and ledger evictions are counted
   and reported.
 
@@ -122,8 +122,7 @@ It does not use Pc as an input.
 Splitting by event matters. CDMs of one event are near-duplicates, so a per-CDM random split would leak test
 events into training. Training is deterministic: rerunning the trainer reproduces the committed weights.
 
-The LSTM does not decompose into per-feature contributions, so the audit log records the standardised inputs
-and the logit. It sits behind envelope checks and the conservative fallback. Its weights have no compiled-in
+The LSTM does not decompose into per-feature contributions, so the audit log records its logit. It sits behind envelope checks and the conservative fallback. Its weights have no compiled-in
 default: if `ml/models/lstm_weights.txt` fails to load, OCAS refuses to start.
 
 ### 4.2 Conservative fallback
@@ -191,8 +190,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 build/bin/test_ocas
 build/bin/ocas_flight_exec --evaluate
-build/bin/ocas_flight_exec --altitude-km 550 --quiet     # result summary only
-build/bin/ocas_flight_exec --altitude-km 550 --verbose   # every manoeuvre + latency, memory, ledger
+build/bin/ocas_flight_exec --altitude-km 550 --quiet     # result summary only (fuel, latency, allocations)
 build/bin/ocas_flight_exec --input data/synthetic/synthetic_geo_vectors.csv --altitude-km 35786 --batch 8 --abort-every 3
 build/bin/ocas_flight_exec --help
 ```
@@ -280,7 +278,7 @@ very strong predictor. OCAS keeps Pc out of its inputs on purpose, so that it ca
 * Model routing: 23,810 CDMs used the LSTM and 674 used the fallback.
 * With the LSTM, the budget runs out before the stream ends, so later threats are escalated
   rather than handled on board. Higher recall has a direct Δv cost. See limitation 4.
-* Memory: zero `operator new` calls inside the loop. The fixed pipeline footprint is 875 KB, and the LSTM
+* Memory: zero `operator new` calls inside the loop. The fixed pipeline footprint is about 800 KB, and the LSTM
   event-state table accounts for most of it.
 * Latency ranges come from repeated runs. Full-cycle figures include audit-log flushes. Full-cycle p99 stays
   at or below 0.2 ms, and the worst single cycle seen was 0.8 ms, far inside any realistic CDM update rate.

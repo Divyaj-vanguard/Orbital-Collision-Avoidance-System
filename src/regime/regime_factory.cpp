@@ -1,4 +1,3 @@
-// OCAS Module 4 implementation: regime strategies and factory.
 #include "regime/regime_strategy.hpp"
 
 #include <algorithm>
@@ -25,11 +24,8 @@ double mean_motion(double altitude_km) noexcept {
 
 }  // namespace
 
-// ---------------------------------------------------------------------------
-// OrbitalRegimeStrategy (shared machinery)
-// ---------------------------------------------------------------------------
 OrbitalRegimeStrategy::OrbitalRegimeStrategy(double altitude_km, const RegimeParameters& p) noexcept
-    : p_(p), altitude_km_(altitude_km), n_(mean_motion(altitude_km)) {}
+    : p_(p), n_(mean_motion(altitude_km)) {}
 
 double OrbitalRegimeStrategy::orbital_period_s() const noexcept { return 2.0 * kPi / n_; }
 
@@ -56,12 +52,9 @@ OrbitalRegimeStrategy::Timing OrbitalRegimeStrategy::plan_timing(double tca_s) c
 EvasionDirective OrbitalRegimeStrategy::complete_directive(const ConjunctionTelemetry& t, const Timing& timing,
                                                            VectorRTN direction, double gain_s) const noexcept {
     const double d = std::max(0.0, t.miss_distance_m);
-    // An unusable covariance contributes nothing; the regime floor and the
-    // 1.5x-miss term still size the maneuver.
     const double sigma_axis = covariance_usable(t.cov_trace_m2) ? std::sqrt(t.cov_trace_m2 / 3.0) : 0.0;
 
-    // Aim for the largest of: regime floor, k-sigma, and 1.5x the current miss.
-    // The 1.5x term guarantees a non-zero maneuver whenever the classifier acts.
+    // The 1.5x-miss term guarantees a non-zero manoeuvre whenever the classifier acts.
     const double target = std::max({p_.min_separation_m, p_.sigma_multiplier * sigma_axis, 1.5 * d});
     const double displacement = std::sqrt(target * target - d * d);
     const double gain = std::max(gain_s, kMinGainS);
@@ -89,9 +82,6 @@ EvasionDirective OrbitalRegimeStrategy::complete_directive(const ConjunctionTele
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// LEO: high speed, drag + J2 dominated, along-track phasing
-// ---------------------------------------------------------------------------
 LEORegime::LEORegime(double altitude_km) noexcept : OrbitalRegimeStrategy(altitude_km, kLeo) {}
 
 double LEORegime::calculate_regime_risk(const ConjunctionTelemetry& t) const {
@@ -108,9 +98,6 @@ EvasionDirective LEORegime::formulate_evasion_directive(const ConjunctionTelemet
     return complete_directive(t, timing, VectorRTN{0.0, 1.0, 0.0}, gain);
 }
 
-// ---------------------------------------------------------------------------
-// MEO: navigation constellations, radial displacement
-// ---------------------------------------------------------------------------
 MEORegime::MEORegime(double altitude_km) noexcept : OrbitalRegimeStrategy(altitude_km, kMeo) {}
 
 double MEORegime::calculate_regime_risk(const ConjunctionTelemetry& t) const {
@@ -126,9 +113,6 @@ EvasionDirective MEORegime::formulate_evasion_directive(const ConjunctionTelemet
     return complete_directive(t, timing, VectorRTN{1.0, 0.0, 0.0}, gain);
 }
 
-// ---------------------------------------------------------------------------
-// GEO: slow encounters, long windows, cross-track inclination adjustment
-// ---------------------------------------------------------------------------
 GEORegime::GEORegime(double altitude_km) noexcept : OrbitalRegimeStrategy(altitude_km, kGeo) {}
 
 double GEORegime::calculate_regime_risk(const ConjunctionTelemetry& t) const {
@@ -144,9 +128,6 @@ EvasionDirective GEORegime::formulate_evasion_directive(const ConjunctionTelemet
     return complete_directive(t, timing, VectorRTN{0.0, 0.0, 1.0}, gain);
 }
 
-// ---------------------------------------------------------------------------
-// RegimeFactory
-// ---------------------------------------------------------------------------
 bool RegimeFactory::classify(double altitude_km, OrbitalRegime& out) noexcept {
     if (!std::isfinite(altitude_km) || altitude_km < kMinOrbitalAltitudeKm) {
         return false;

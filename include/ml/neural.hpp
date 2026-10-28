@@ -1,20 +1,3 @@
-// ============================================================================
-// OCAS ML layer: feature transform and fixed-size neural network inference.
-// ============================================================================
-// Used by BOTH the offline trainers (ml/lstm_cpp) and the flight strategies, so
-// the feature pipeline and forward pass cannot drift between training and
-// inference (training/serving skew).
-//
-// Inputs (4), standardised with mean/std stored alongside the weights:
-//   x0 = log10(d_miss + 1)            [log metres]
-//   x1 = v_rel                        [km/s]
-//   x2 = t_TCA / 86400                [days]
-//   x3 = log10(sqrt(Tr C) + 1)        [log metres]
-// collision_prob is never an input.
-//
-// LSTM: one layer, 16 hidden units, gate order [i, f, g, o]; logit = w.h + b
-// All weights live in std::array: inference never allocates.
-// ============================================================================
 #ifndef OCAS_ML_NEURAL_HPP
 #define OCAS_ML_NEURAL_HPP
 
@@ -28,6 +11,8 @@
 
 namespace ocas::ml {
 
+// Shared by the trainer (ml/lstm_cpp) and the flight code so features cannot drift.
+// Inputs: log10(d+1), v_rel, t_TCA in days, log10(sqrt(TrC)+1). collision_prob is never an input.
 inline constexpr std::size_t kFeatures = 4;
 inline constexpr std::size_t kLstmH = 16;
 
@@ -52,13 +37,11 @@ inline Features standardize(const Features& raw, const FeatureScaler& s) noexcep
 
 inline double sigmoid(double z) noexcept { return 1.0 / (1.0 + std::exp(-std::clamp(z, -30.0, 30.0))); }
 
-// ---------------------------------------------------------------------------
-// LSTM
-// ---------------------------------------------------------------------------
+// Gate order [i, f, g, o]; logit = w_out . h + b_out.
 struct LstmParams {
     FeatureScaler scaler{};
-    std::array<double, 4 * kLstmH * kFeatures> W{};  ///< input weights  [4H][in]
-    std::array<double, 4 * kLstmH * kLstmH> U{};     ///< recurrent      [4H][H]
+    std::array<double, 4 * kLstmH * kFeatures> W{};
+    std::array<double, 4 * kLstmH * kLstmH> U{};
     std::array<double, 4 * kLstmH> b{};
     std::array<double, kLstmH> w_out{};
     double b_out = 0.0;
@@ -70,7 +53,6 @@ struct LstmState {
     std::array<double, kLstmH> c{};
 };
 
-/// Advance the cell by one CDM and return the output logit. O(H * (H + in)).
 inline double lstm_step(const LstmParams& p, const Features& x, LstmState& s) noexcept {
     constexpr std::size_t H = kLstmH;
     std::array<double, 4 * H> gates{};
@@ -93,13 +75,9 @@ inline double lstm_step(const LstmParams& p, const Features& x, LstmState& s) no
     return z;
 }
 
-// ---------------------------------------------------------------------------
-// Weight files (init-time I/O, implemented in src/ml/model_io.cpp)
-// Text format: "# comment" lines, then "<name> <n values...>" per line.
-// ---------------------------------------------------------------------------
 bool load_lstm(const std::string& path, LstmParams& out, std::string& error);
 bool save_lstm(const std::string& path, const LstmParams& p, const std::string& comment);
 
 }  // namespace ocas::ml
 
-#endif  // OCAS_ML_NEURAL_HPP
+#endif

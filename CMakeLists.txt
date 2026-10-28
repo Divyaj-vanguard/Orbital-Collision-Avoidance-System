@@ -27,7 +27,6 @@ add_library(ocas_core STATIC
     src/core/types.cpp
     src/core/cdm_io.cpp
     src/risk/risk_classifier.cpp
-    src/priority/max_heap.cpp
     src/regime/regime_factory.cpp
     src/persistence/state_caretaker.cpp
     src/persistence/mission_ledger.cpp

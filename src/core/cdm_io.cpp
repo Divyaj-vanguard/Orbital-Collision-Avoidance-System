@@ -1,4 +1,3 @@
-// OCAS CDM CSV/JSON loader and serializer.
 #include "core/cdm_io.hpp"
 
 #include <cerrno>
@@ -13,7 +12,6 @@ namespace ocas {
 
 namespace {
 
-// Parse a double field ending at ',' or end-of-line. Empty field -> NaN if allowed.
 bool parse_double(const char*& p, double& out, bool allow_empty) noexcept {
     if (*p == ',' || *p == '\0' || *p == '\r' || *p == '\n') {
         if (!allow_empty) return false;
@@ -77,21 +75,6 @@ std::size_t format_cdm_csv_line(const ConjunctionTelemetry& t, char* buf, std::s
     return finish(n, cap);
 }
 
-std::size_t format_cdm_json(const ConjunctionTelemetry& t, char* buf, std::size_t cap) noexcept {
-    char cov[32];
-    if (std::isfinite(t.cov_trace_m2)) {
-        std::snprintf(cov, sizeof cov, "%.17g", t.cov_trace_m2);
-    } else {
-        std::snprintf(cov, sizeof cov, "null");
-    }
-    const int n = std::snprintf(buf, cap,
-                                "{\"alert_id\":%u,\"miss_distance_m\":%.17g,\"relative_speed_km_s\":%.17g,"
-                                "\"time_to_tca_sec\":%.17g,\"cov_trace_m2\":%s,\"collision_prob\":%.17g}",
-                                t.alert_id, t.miss_distance_m, t.relative_speed_km_s, t.time_to_tca_sec, cov,
-                                t.collision_prob);
-    return finish(n, cap);
-}
-
 bool load_cdm_csv(const std::string& path, std::vector<ConjunctionTelemetry>& out, CdmLoadReport& report,
                   std::size_t max_rows) {
     report = CdmLoadReport{};
@@ -115,7 +98,7 @@ bool load_cdm_csv(const std::string& path, std::vector<ConjunctionTelemetry>& ou
         if (line.empty() || line == "\r") continue;
         ConjunctionTelemetry t{};
         if (!parse_cdm_csv_line(line.c_str(), t)) {
-            if (report.malformed++ == 0) report.first_malformed_line = report.lines + 1;
+            ++report.malformed;
             continue;
         }
         if (!std::isfinite(t.cov_trace_m2)) ++report.missing_covariance;
