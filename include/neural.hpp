@@ -1,7 +1,7 @@
-#ifndef OCAS_ML_NEURAL_HPP
-#define OCAS_ML_NEURAL_HPP
+#ifndef OCAS_NEURAL_HPP
+#define OCAS_NEURAL_HPP
 
-#include "core/types.hpp"
+#include "types.hpp"
 
 #include <algorithm>
 #include <array>
@@ -64,12 +64,8 @@ inline double lstm_step(const LstmParams& p, const Features& x, LstmState& s) no
     }
     double z = p.b_out;
     for (std::size_t j = 0; j < H; ++j) {
-        const double ig = sigmoid(gates[j]);
-        const double fg = sigmoid(gates[H + j]);
-        const double gg = std::tanh(gates[2 * H + j]);
-        const double og = sigmoid(gates[3 * H + j]);
-        s.c[j] = fg * s.c[j] + ig * gg;
-        s.h[j] = og * std::tanh(s.c[j]);
+        s.c[j] = sigmoid(gates[H + j]) * s.c[j] + sigmoid(gates[j]) * std::tanh(gates[2 * H + j]);
+        s.h[j] = sigmoid(gates[3 * H + j]) * std::tanh(s.c[j]);
         z += p.w_out[j] * s.h[j];
     }
     return z;

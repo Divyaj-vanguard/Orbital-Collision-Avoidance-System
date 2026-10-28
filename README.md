@@ -29,37 +29,32 @@ computer or a missile approach warning system: OCAS decides *what* should happen
 ## 2. Architecture
 
 ```
- CDM CSV ──► CircularBuffer<64> ──► RiskClassifier ──► OrbitalRegimeStrategy ──► MaxHeap<64>
- (ground      overwrite-oldest       │ LSTM (in-domain)        regime risk           ThreatComparator
-  uplink)     overflow counted       └ Conservative (fallback)                          │
-                                                                                        ▼
-  FlightAuditLogger ◄── Observer ◄── MissionLedger ◄── StateCaretaker ◄── formulate_evasion_directive()
-  TerminalTelemetry      events       (doubly linked,    (Memento LIFO:        LEO / MEO / GEO
-                                       fixed pool)        checkpoint, unwind)
+ CDM CSV ──► inbox (64, drops oldest) ──► assess_risk() ──► regime_risk() ──► priority heap
+ (ground                                   │ LSTM (in-domain)                    (std::push_heap,
+  uplink)                                  └ conservative rule (fallback)         ranks_below)
+                                                                                      │
+  Recorder: audit log + terminal  ◄──  stage / commit / abort  ◄──  plan_evasion()  ◄─┘
+                                       (budget restored on abort)    LEO / MEO / GEO
 ```
 
-| Module | Files | Pattern / technique |
+| Step | Files | How |
 | :-- | :-- | :-- |
-| 1. Ingestion buffer | `include/ingestion/circular_buffer.hpp` | Class template `CircularBuffer<T, N>` on `std::array`, 64-byte aligned, overwrite-oldest with overflow counter |
-| 2. Risk classifier | `include/risk/risk_strategy.hpp`, `src/risk/risk_classifier.cpp` | Strategy: `IRiskStrategy` → `LstmStrategy`, `ConservativeThresholdStrategy`; `RiskClassifier` is the context and records *why* it chose a model |
-| 3. Priority ranking | `include/priority/max_heap.hpp` | `MaxHeap<T, N, Compare>` over a fixed array with hole-based sift, `ThreatComparator` functor |
-| 4. Regime and advisory | `include/regime/regime_strategy.hpp`, `src/regime/regime_factory.cpp` | Strategy + Factory: `OrbitalRegimeStrategy` → `LEORegime`, `MEORegime`, `GEORegime`; `RegimeFactory::create_regime(altitude_km)` |
-| 5. Persistence | `include/persistence/*.hpp`, `src/persistence/*.cpp` | Memento (`Spacecraft`, `SpacecraftMemento`, `StateCaretaker`, `StateStack<T, N>`); doubly linked `MissionLedger` on a node pool; RAII `FlightAuditLogger` |
-| 6. Orchestrator | `include/pipeline/ocas_pipeline.hpp`, `src/pipeline/ocas_pipeline.cpp`, `src/main.cpp` | Observer (`IPipelineObserver`, fixed `ObserverRegistry`), latency profiler, allocation counter |
-
-Supporting code lives in `include/core/` (domain types, CSV/JSON I/O, observer, profiler) and
-`include/telemetry/` (ANSI terminal output).
+| Types and CSV I/O | `include/types.hpp`, `include/cdm_io.hpp`, `src/cdm_io.cpp` | Plain structs and enums; strict six-field CSV parser |
+| Risk | `include/risk.hpp`, `src/risk.cpp`, `include/neural.hpp`, `src/model_io.cpp` | `select_model()` decides LSTM or fallback and records *why*; `LstmModel` keeps per-event state in a fixed open-addressing table; `conservative_assess()` is the rule-based fallback |
+| Regime and advisory | `include/regime.hpp`, `src/regime.cpp` | One `Regime` parameter table per LEO / MEO / GEO; `regime_risk()` and `plan_evasion()` switch on the regime |
+| Pipeline | `include/pipeline.hpp`, `src/pipeline.cpp` | Inbox and heap are `std::vector`s reserved at init; the heap uses `std::push_heap` / `std::pop_heap`; each staged advisory remembers the budget before it, so an abort restores it directly |
+| Output | `include/recorder.hpp`, `src/recorder.cpp` | One `Recorder` writes the JSON-lines audit log and the terminal table |
+| Executive | `src/main.cpp`, `src/alloc_tracker.cpp` | CLI, offline evaluation, cycle loop, summary, allocation counter |
 
 ### Real-time guarantees
 
-* **No heap allocation inside the cyclic loop.** Every container the loop touches is a fixed-capacity
-  member. `src/core/alloc_tracker.cpp` replaces global `operator new` in the flight executable and the
-  run prints the count of allocations between the first and last cycle. The executable exits with
-  status 3 if that count is not zero. Allocation happens only at init (dataset load, strategy objects).
-* **Bounded work per operation.** Buffer push/pop O(1), heap push/pop O(log n) and top O(1), risk
-  scoring O(1), memento checkpoint O(1) and unwind O(depth ≤ 16), ledger append O(1).
-* **No silent data loss.** Ring-buffer overwrites, heap rejections and ledger evictions are counted
-  and reported.
+* **No heap allocation inside the cyclic loop.** The inbox and heap are reserved at init and every other
+  container the loop touches has a fixed size. `src/alloc_tracker.cpp` replaces global `operator new` in the
+  flight executable and the run prints the count of allocations between the first and last cycle. The
+  executable exits with status 3 if that count is not zero. Allocation happens only at init.
+* **Bounded work per operation.** Inbox push O(64) worst case, heap push/pop O(log n), risk scoring O(1),
+  staging and abort O(16).
+* **No silent data loss.** Dropped inbox CDMs are counted and reported, and every advisory is in the audit log.
 
 ---
 
@@ -117,7 +112,7 @@ It does not use Pc as an input.
 | Input | the event's CDM history so far, keyed by `alert_id` |
 | Split | by event, 70 / 15 / 15, seed 2026, using only CDMs ≥ 2 days before TCA |
 | Threshold | F1-optimal on validation, never on test |
-| Cost | O(1) per CDM, with a fixed 2,048-event state table. A full probe window evicts its least recently updated event, and evictions are counted |
+| Cost | O(1) per CDM, with a fixed 2,048-event state table. A full probe window evicts its least recently updated event |
 
 Splitting by event matters. CDMs of one event are near-duplicates, so a per-CDM random split would leak test
 events into training. Training is deterministic: rerunning the trainer reproduces the committed weights.
@@ -127,7 +122,7 @@ default: if `ml/models/lstm_weights.txt` fails to load, OCAS refuses to start.
 
 ### 4.2 Conservative fallback
 
-`RiskClassifier` uses the fallback whenever the in-domain model is outside its training envelope:
+OCAS uses the fallback whenever the in-domain model is outside its training envelope:
 
 | Reason | Condition |
 | :-- | :-- |
@@ -167,11 +162,11 @@ GEO adds a slow-encounter dwell factor. These weights are engineering heuristics
 
 ### 4.5 Advisory lifecycle
 
-Each staged advisory is preceded by a memento checkpoint and reserves Δv from the budget. The OEM
-FCU acknowledgement is simulated with `--abort-every N`. An external abort of advisory *k* unwinds
-the LIFO stack to *k*'s checkpoint, which also undoes every advisory staged after *k*, because those
-were sized against a state that included *k*. Everything else is committed. Each event lands in the
-mission ledger and the audit log.
+Each staged advisory records the Δv budget before it and reserves Δv from the budget. The OEM
+FCU acknowledgement is simulated with `--abort-every N`. An external abort of advisory *k* restores
+the budget from before *k*, which also undoes every advisory staged after *k*, because those
+were sized against a budget that included *k*. Everything else is committed. Each event lands in the
+audit log.
 
 ---
 
@@ -278,8 +273,8 @@ very strong predictor. OCAS keeps Pc out of its inputs on purpose, so that it ca
 * Model routing: 23,810 CDMs used the LSTM and 674 used the fallback.
 * With the LSTM, the budget runs out before the stream ends, so later threats are escalated
   rather than handled on board. Higher recall has a direct Δv cost. See limitation 4.
-* Memory: zero `operator new` calls inside the loop. The fixed pipeline footprint is about 800 KB, and the LSTM
-  event-state table accounts for most of it.
+* Memory: zero `operator new` calls inside the loop. The pipeline uses about 580 KB of fixed memory; the LSTM event-state table (555 KB) is
+  most of it.
 * Latency ranges come from repeated runs. Full-cycle figures include audit-log flushes. Full-cycle p99 stays
   at or below 0.2 ms, and the worst single cycle seen was 0.8 ms, far inside any realistic CDM update rate.
 
@@ -307,8 +302,8 @@ very strong predictor. OCAS keeps Pc out of its inputs on purpose, so that it ca
 ## 8. Repository layout
 
 ```
-include/{core,ingestion,risk,priority,regime,persistence,pipeline,telemetry,ml}/   C++ engine headers
-src/{core,risk,priority,regime,persistence,pipeline,telemetry,ml}/, src/main.cpp   C++ engine
+include/                 C++ engine headers
+src/                     C++ engine, src/main.cpp is the flight executable
 tests/test_ocas.cpp      verification suite
 ml/lstm/                 Python LSTM: train_lstm.py, predict.py, lstm_common.py
 ml/lstm_cpp/             C++ LSTM trainer for the engine weights, run_ml_eval.sh

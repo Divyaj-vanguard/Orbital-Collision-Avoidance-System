@@ -11,7 +11,7 @@
 //   collision_prob      = 10^risk                      (ESA risk is log10 Pc)
 // Usage: compact_cdm_dataset <esa_raw.csv> <out.csv>
 // ============================================================================
-#include "core/cdm_io.hpp"
+#include "cdm_io.hpp"
 
 #include <cmath>
 #include <cstdio>

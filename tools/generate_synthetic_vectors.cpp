@@ -9,7 +9,7 @@
 //   every 16th row has an empty covariance (exercises the fallback path)
 // Usage: generate_synthetic_vectors <out_dir>
 // ============================================================================
-#include "core/cdm_io.hpp"
+#include "cdm_io.hpp"
 
 #include <algorithm>
 #include <cmath>

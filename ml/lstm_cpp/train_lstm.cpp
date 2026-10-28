@@ -7,7 +7,7 @@
 //          challenge's own definition. The exact risk is read from the raw ESA
 //          file (train_data.csv); train_clean.csv rounds Pc to 6 decimals.
 //          (Pc > 1e-4 leaves only 13 positive events of 13,154: not learnable.)
-// Inputs : per CDM, the 4 standardised features of include/ml/neural.hpp (no Pc input).
+// Inputs : per CDM, the 4 standardised features of include/neural.hpp (no Pc input).
 //          Only CDMs with t_TCA >= 2 days and inside the model domain.
 // Split  : by EVENT 70 / 15 / 15, seed 2026.
 // Train  : loss on every prefix (online use predicts after each CDM), weighted
@@ -20,7 +20,7 @@
 // Usage  : train_lstm [repo_root=.] [--epochs N] [--seed N] [--gradcheck]
 // ============================================================================
 #include "ml_common.hpp"
-#include "risk/risk_strategy.hpp"
+#include "risk.hpp"
 
 #include <cstring>
 #include <map>
@@ -176,10 +176,10 @@ bool gradient_check(SplitMix64& rng) {
     return worst < 1e-5;
 }
 
-/// Score each sequence at its last input CDM using the FLIGHT strategy class.
+/// Score each sequence at its last input CDM using the FLIGHT model class.
 std::vector<Scored> score_lstm(const ml::LstmParams& p, const std::vector<Sequence>& seqs) {
-    static LstmStrategy s(p);  // ~0.6 MB state store
-    s = LstmStrategy(p);
+    static LstmModel s;  // ~0.6 MB state store
+    s = LstmModel(p);
     std::vector<Scored> out;
     for (const auto& q : seqs) {
         double score = 0.0;

@@ -1,14 +1,14 @@
 // ============================================================================
 // OCAS offline ML toolkit: shared helpers for train_lstm.
 // Ground tools only: they allocate freely and are never linked into flight code.
-// The flight-side forward passes in include/ml/neural.hpp are reused for every
+// The flight-side forward passes in include/neural.hpp are reused for every
 // evaluation, so reported metrics are those of the code that actually flies.
 // ============================================================================
 #ifndef OCAS_TOOLS_ML_COMMON_HPP
 #define OCAS_TOOLS_ML_COMMON_HPP
 
-#include "core/types.hpp"
-#include "ml/neural.hpp"
+#include "neural.hpp"
+#include "types.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -42,7 +42,7 @@ inline ConjunctionTelemetry to_telemetry(const Cdm& c) {
     return t;
 }
 
-/// Same domain the flight RiskClassifier sends to a trained model.
+/// Same domain the flight select_model() sends to a trained model.
 inline bool in_model_domain(const Cdm& c) {
     return std::isfinite(c.d) && c.d >= 0.0 && std::isfinite(c.v) && c.v >= 0.0 && c.v <= 17.5 &&
            covariance_usable(c.cov);

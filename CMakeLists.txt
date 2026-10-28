@@ -22,26 +22,22 @@ else()
     set(OCAS_FLAGS -std=c++17 -Wall -Wextra -Werror -pedantic -O3)
 endif()
 
-# ---- Core library: Modules 1-5 + orchestrator + telemetry -------------------
+# ---- Core library -----------------------------------------------------------
 add_library(ocas_core STATIC
-    src/core/types.cpp
-    src/core/cdm_io.cpp
-    src/risk/risk_classifier.cpp
-    src/regime/regime_factory.cpp
-    src/persistence/state_caretaker.cpp
-    src/persistence/mission_ledger.cpp
-    src/persistence/flight_audit_logger.cpp
-    src/pipeline/ocas_pipeline.cpp
-    src/telemetry/terminal_telemetry.cpp
-    src/ml/model_io.cpp
+    src/cdm_io.cpp
+    src/model_io.cpp
+    src/risk.cpp
+    src/regime.cpp
+    src/recorder.cpp
+    src/pipeline.cpp
 )
 target_include_directories(ocas_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_compile_options(ocas_core PUBLIC ${OCAS_FLAGS})
 
-# ---- Flight executive (Module 6) --------------------------------------------
+# ---- Flight executive ---------------------------------------------------------
 # alloc_tracker.cpp replaces global operator new to verify zero allocations
 # inside the cyclic loop, so it is linked into this executable only.
-add_executable(ocas_flight_exec src/main.cpp src/core/alloc_tracker.cpp)
+add_executable(ocas_flight_exec src/main.cpp src/alloc_tracker.cpp)
 target_link_libraries(ocas_flight_exec PRIVATE ocas_core)
 
 # ---- Verification suite -------------------------------------------------------

@@ -1,7 +1,7 @@
-#ifndef OCAS_CORE_CDM_IO_HPP
-#define OCAS_CORE_CDM_IO_HPP
+#ifndef OCAS_CDM_IO_HPP
+#define OCAS_CDM_IO_HPP
 
-#include "core/types.hpp"
+#include "types.hpp"
 
 #include <cstddef>
 #include <iosfwd>
@@ -20,7 +20,6 @@ bool parse_cdm_csv_line(const char* line, ConjunctionTelemetry& out) noexcept;
 std::size_t format_cdm_csv_line(const ConjunctionTelemetry& t, char* buf, std::size_t cap) noexcept;
 
 struct CdmLoadReport {
-    std::size_t lines = 0;
     std::size_t loaded = 0;
     std::size_t malformed = 0;
     std::size_t missing_covariance = 0;

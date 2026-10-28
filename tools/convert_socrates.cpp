@@ -12,12 +12,12 @@
 //   collision_prob      = MAX_PROB. This is the MAXIMUM Pc over all covariance
 //                         sizes (an upper bound), not an operational Pc.
 // Regime: mean altitude (APOGEE + PERIGEE)/2 of NORAD_CAT_ID_1 from SATCAT,
-// classified with RegimeFactory::classify so the boundaries match the flight code.
+// classified with classify_regime so the boundaries match the flight code.
 //
 // Usage: convert_socrates <socrates.csv> <satcat.csv> <reference_utc ISO8601> <out_dir>
 // ============================================================================
-#include "core/cdm_io.hpp"
-#include "regime/regime_strategy.hpp"
+#include "cdm_io.hpp"
+#include "regime.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
         const auto it = altitude.find(static_cast<long>(id1));
         if (it == altitude.end()) { ++no_satcat; continue; }
         ocas::OrbitalRegime r{};
-        if (!ocas::RegimeFactory::classify(it->second, r)) { ++invalid_alt; continue; }
+        if (!ocas::classify_regime(it->second, r)) { ++invalid_alt; continue; }
         ocas::ConjunctionTelemetry t{};
         t.alert_id = row;
         t.miss_distance_m = rng * 1000.0;

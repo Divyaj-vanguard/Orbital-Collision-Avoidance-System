@@ -8,7 +8,7 @@
 //   collision_prob      = COLLISION_PROBABILITY if present, else 0
 // Usage: convert_ccsds_cdm <out.csv> <cdm1.txt> [cdm2.txt ...]
 // ============================================================================
-#include "core/cdm_io.hpp"
+#include "cdm_io.hpp"
 
 #include <cmath>
 #include <cstdio>
