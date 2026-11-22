@@ -28,13 +28,79 @@ computer or a missile approach warning system: OCAS decides *what* should happen
 
 ## 2. Architecture
 
-```
- CDM CSV ──► inbox (64, drops oldest) ──► assess_risk() ──► regime_risk() ──► priority heap
- (ground                                   │ LSTM (in-domain)                    (std::push_heap,
-  uplink)                                  └ conservative rule (fallback)         ranks_below)
-                                                                                      │
-  Recorder: audit log + terminal  ◄──  stage / commit / abort  ◄──  plan_evasion()  ◄─┘
-                                       (budget restored on abort)    LEO / MEO / GEO
+The same flow as a picture: [`flow_diagram.png`](flow_diagram.png).
+
+```mermaid
+flowchart TD
+    subgraph OFF["Offline tools (run once, on the ground)"]
+        RAWTR[("ESA train_data.csv")] --> TRAIN["tools/train_lstm.cpp<br/>train LSTM, pick threshold"]
+        TRAIN --> W[("models/lstm_weights.txt")]
+        RAWTE[("ESA test_data.csv")] --> COMPACT["tools/compact_cdm_dataset.cpp"]
+        COMPACT --> CSV[("data/esa/cleaned_cdm_dataset.csv")]
+        GEN["tools/generate_synthetic_vectors.cpp"] --> SYN[("data/synthetic/*.csv<br/>MEO and GEO")]
+    end
+
+    subgraph STARTUP["Startup: src/main.cpp"]
+        LOADW["load weights<br/>model_io.cpp"]
+        LOADC["load CDM CSV<br/>cdm_io.cpp"]
+        REG["make_regime(altitude)<br/>LEO / MEO / GEO"]
+        EVAL{"--evaluate?"}
+    end
+    W --> LOADW
+    CSV --> LOADC
+    SYN --> LOADC
+    LOADW --> EVAL
+    LOADC --> EVAL
+    EVAL -- yes --> SCORE["score every CDM with LSTM, safety rule,<br/>hybrid and 1 km baseline; print table"]
+    EVAL -- no --> REG
+
+    subgraph CYCLE["Every cycle: src/pipeline.cpp"]
+        INBOX["main pushes a batch into the inbox<br/>holds 64, drops the oldest"]
+        VALID{"valid CDM?<br/>finite, distance ≥ 0, TCA ahead"}
+        SEL{"select_model():<br/>host in LEO, covariance usable,<br/>speed ≤ 17.5 km/s?"}
+        LSTM["LstmModel.assess()<br/>uses this event's history"]
+        RULE["conservative_assess()<br/>Pc estimate or distance screen"]
+        PRIO["priority = 0.7 × model score<br/>+ 0.3 × regime_risk()"]
+        HEAP["push into priority heap"]
+        POP{"pop next threat:<br/>actionable and under<br/>max advisories?"}
+        DUP{"event already<br/>handled?"}
+        PLAN["plan_evasion()<br/>CW burn: Δv, direction, time, urgency"]
+        CAP{"Δv over<br/>regime cap?"}
+        FUEL{"Δv over<br/>fuel left?"}
+        STAGE["stage advisory<br/>remember budget, reserve Δv"]
+        ACK{"FCU aborts an<br/>advisory? (--abort-every)"}
+        UNDO["restore budget from before it,<br/>undo it and every later one"]
+        COMMIT["commit the rest"]
+    end
+    REG --> INBOX
+    INBOX --> VALID
+    VALID -- no --> REJ["log INPUT_REJECTED"]
+    VALID -- yes --> SEL
+    SEL -- yes --> LSTM
+    SEL -- no --> RULE
+    LSTM --> PRIO
+    RULE --> PRIO
+    PRIO --> HEAP
+    HEAP --> POP
+    POP -- yes --> DUP
+    DUP -- yes, skip --> POP
+    DUP -- no --> PLAN
+    PLAN --> CAP
+    CAP -- yes --> ESC["reject, escalate to ground"]
+    CAP -- no --> FUEL
+    FUEL -- yes --> ESC
+    FUEL -- no --> STAGE
+    STAGE --> POP
+    ESC --> POP
+    POP -- no --> ACK
+    ACK -- yes --> UNDO
+    UNDO --> COMMIT
+    ACK -- no --> COMMIT
+    COMMIT -- more CDMs --> INBOX
+
+    COMMIT -- input finished --> SUM["summary: threats, manoeuvres,<br/>fuel used, latency, heap allocations"]
+    REC[["Recorder (recorder.cpp)<br/>logs every step to logs/flight_audit.log<br/>prints first 10 advisories"]]
+    CYCLE -.-> REC
 ```
 
 | Step | Files | How |
